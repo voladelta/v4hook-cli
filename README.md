@@ -15,12 +15,13 @@ You need:
 - Git
 - a static analyser such as Slither
 
-Build and install the CLI:
+Install the locked, release-optimised binary in `~/.local/bin`:
 
 ```sh
-cargo build --release
-cargo install --path .
+./install.sh
 ```
+
+Set `V4HOOK_INSTALL_ROOT` to use another installation root. Its `bin` directory must be in your `PATH`.
 
 The release profile favours runtime speed. It uses optimisation level 3, fat link-time optimisation and one code generation unit.
 
