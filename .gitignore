@@ -1,0 +1,6 @@
+target/
+.v4hook/
+*.log
+.env
+.env.*
+!.env.example
