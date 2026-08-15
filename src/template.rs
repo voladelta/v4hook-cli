@@ -21,9 +21,10 @@ use crate::{
     util::status,
 };
 
-const PRESERVED_PATHS: [&str; 7] = [
+const PRESERVED_PATHS: [&str; 8] = [
     ".github/workflows/test.yml",
     ".gitignore",
+    "AGENTS.md",
     "README.md",
     "foundry.toml",
     "remappings.txt",

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "v4hook.template-lock.v2",
-  "templateVersion": "1.0.0",
-  "snapshot": "v4hook-template-1.0.0",
+  "templateVersion": "1.0.1",
+  "snapshot": "v4hook-template-1.0.1",
   "repository": "Uniswap/v4-template",
   "commit": "1fbf95547791f0821a170b88c750cb2e04e6818b",
   "dependencies": {
@@ -23,12 +23,16 @@
       "sha256": "sha256:ec989d45826624f506da316174d05e383b27ad59b1cd9946691b8763d123281f",
       "ownership": "managed"
     },
+    "AGENTS.md": {
+      "sha256": "sha256:354cdb5a9497c7d15a0ed61e62222cbcf410f560c7a59a04d1b788a66017c767",
+      "ownership": "managed"
+    },
     "LICENSE": {
       "sha256": "sha256:b7c8f976ffe1ff0429fd54a6f1af803379dd0c1fbc54489f5643ebf8898e0594",
       "ownership": "managed"
     },
     "README.md": {
-      "sha256": "sha256:b92b38ef6c5935d599e1ae3571a9e6a166e1d22b87c5cd02d26cab3bf77a9d95",
+      "sha256": "sha256:36838074a9da0e329c3ea4e49e7ec2ded85a2e459211e694ec8fd0749b09f422",
       "ownership": "seed"
     },
     "foundry.toml": {

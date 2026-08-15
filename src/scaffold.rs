@@ -568,7 +568,26 @@ mod tests {
             ownership("vendor/v4-core/src/PoolManager.sol"),
             FileOwnership::Generated
         );
+        assert_eq!(ownership("AGENTS.md"), FileOwnership::Managed);
         assert_eq!(ownership("foundry.toml"), FileOwnership::Managed);
+    }
+
+    #[test]
+    fn embedded_scaffold_metadata_is_sealed() {
+        let temporary = TemporaryDirectory::create("sealed-scaffold").unwrap();
+        let root = temporary.path().join("project");
+        fs::create_dir(&root).unwrap();
+        SCAFFOLD.extract(&root).unwrap();
+        let expected_lock = fs::read(root.join(LOCK_FILE)).unwrap();
+        let expected_metadata = fs::read(root.join(METADATA_FILE)).unwrap();
+
+        seal_scaffold(&root).unwrap();
+
+        assert_eq!(fs::read(root.join(LOCK_FILE)).unwrap(), expected_lock);
+        assert_eq!(
+            fs::read(root.join(METADATA_FILE)).unwrap(),
+            expected_metadata
+        );
     }
 
     #[test]

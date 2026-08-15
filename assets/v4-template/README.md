@@ -15,6 +15,12 @@ forge test
 
 `test/Counter.t.sol` deploys local v4 contracts, creates a pool and checks the hook counters.
 
+## Use a coding agent
+
+The project includes `AGENTS.md` for Codex, ChatGPT and other coding agents. It routes agents to current Uniswap, Foundry and Ethereum guidance, and tells them how to install relevant project-level skills when supported.
+
+Keep `AGENTS.md` in the repository root so agents can discover it. Review any third-party skill before using it, and do not treat agent output or a passing test suite as a security audit.
+
 ## Update the scaffold
 
 Commit your work before an update. Install the newer v4hook CLI, then preview its bundled template:

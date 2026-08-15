@@ -43,6 +43,7 @@ The command does not make a network request. It copies one pinned scaffold and i
 
 The generated project contains:
 
+- `AGENTS.md` with current Uniswap, Foundry and Ethereum guidance for coding agents
 - `.v4hook.toml` with the CLI and template versions
 - `.v4hook-template-lock.json` with upstream revisions and file hashes
 - one flattened `vendor/` directory without Git history or submodules

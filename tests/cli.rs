@@ -53,4 +53,10 @@ fn init_keeps_captured_stdout_machine_readable() {
         serde_json::from_slice(&output.stdout).expect("stdout contains only JSON");
     assert_eq!(value["directory"], destination.0.to_string_lossy().as_ref());
     assert!(destination.0.join(".git").is_dir());
+    let agent_instructions =
+        fs::read_to_string(destination.0.join("AGENTS.md")).expect("scaffold includes AGENTS.md");
+    assert!(agent_instructions.contains("v4-security-foundations"));
+    let metadata = fs::read_to_string(destination.0.join(".v4hook.toml"))
+        .expect("scaffold includes template metadata");
+    assert!(metadata.contains("version = \"1.0.1\""));
 }
