@@ -23,6 +23,12 @@ Install the locked, release-optimised binary in `~/.local/bin`:
 
 Set `V4HOOK_INSTALL_ROOT` to use another installation root. Its `bin` directory must be in your `PATH`.
 
+Remove the default installation with:
+
+```sh
+rm ~/.local/bin/v4hook
+```
+
 The release profile favours runtime speed. It uses optimisation level 3, fat link-time optimisation and one code generation unit.
 
 ## Create a hook project
@@ -113,6 +119,8 @@ Copy `v4hook.config.example.json` into your hook repository. Update every projec
 
 The starter shows the file format. It does not know your contract name, permissions, test files or pool tokens.
 
+The unit, fuzz, invariant, quadrant and postcondition gates must use `forge test`. Each gate fails if its filter matches no tests. The unit, fuzz and invariant commands must also execute at least one test of their named Foundry test type.
+
 Constructor arguments must be ABI encoded. For example:
 
 ```sh
@@ -148,6 +156,12 @@ v4hook simulate \
 The plan records the fork block and hashes the deployed Uniswap contracts. It also mines and checks the required CREATE2 address flags.
 
 Any source, configuration, artifact or network change makes the plan invalid.
+
+Interactive commands print a concise result and write progress to stderr. Redirected stdout is JSON, so scripts can parse it without progress messages. Pass `--json` anywhere in the command to request JSON explicitly:
+
+```sh
+v4hook doctor --json --config v4hook.config.json
+```
 
 ## Deploy to Base Sepolia
 

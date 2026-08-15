@@ -26,19 +26,29 @@ pub fn initialize_project(directory: &Path) -> Result<serde_json::Value> {
     }
     fs::create_dir_all(&destination)
         .with_context(|| format!("create {}", destination.display()))?;
-    if let Err(error) = SCAFFOLD.extract(&destination) {
-        let _ = fs::remove_dir_all(&destination);
-        return Err(error)
-            .with_context(|| format!("extract scaffold to {}", destination.display()));
-    }
-    seal_scaffold(&destination)?;
-    let lock: ScaffoldLock = read_json(destination.join(".v4hook-template-lock.json"))?;
-    require_success(
-        &command(&["git", "init", "-b", "main"]),
-        &destination,
-        None,
-        true,
-    )?;
+    let result: Result<ScaffoldLock> = (|| {
+        SCAFFOLD
+            .extract(&destination)
+            .with_context(|| format!("extract scaffold to {}", destination.display()))?;
+        seal_scaffold(&destination)?;
+        let lock: ScaffoldLock = read_json(destination.join(".v4hook-template-lock.json"))?;
+        require_success(
+            &command(&["git", "init", "-b", "main"]),
+            &destination,
+            None,
+            false,
+        )?;
+        Ok(lock)
+    })();
+    let lock = match result {
+        Ok(lock) => lock,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&destination);
+            return Err(error).with_context(|| {
+                format!("initialization failed; removed {}", destination.display())
+            });
+        }
+    };
     Ok(serde_json::json!({
         "directory": destination.to_string_lossy(),
         "commit": lock.commit,

@@ -7,6 +7,7 @@ use regex::Regex;
 use crate::{
     model::{LoadedConfig, SimulationKind, SimulationStep, V4HookConfig},
     permissions::{permission_flags, validate_hook_address_fee},
+    process::validate_foundry_test_command,
     util::{normalize_address, normalize_hex, parse_unsigned, resolve_from},
 };
 
@@ -25,6 +26,15 @@ fn require_steps(steps: &[SimulationStep], required: &[SimulationKind], label: &
     }
     for step in steps {
         validate_command(&step.command, "simulation command")?;
+        if matches!(
+            step.kind,
+            SimulationKind::Quadrants | SimulationKind::Postconditions
+        ) {
+            validate_foundry_test_command(
+                &step.command,
+                &format!("{} simulation step", step.kind.as_str()),
+            )?;
+        }
     }
     Ok(())
 }
@@ -48,6 +58,21 @@ fn reject_state_changing_verification(command: &[String]) -> Result<()> {
     {
         bail!("pool.liveVerify must be read-only; state-changing commands are not allowed");
     }
+    Ok(())
+}
+
+fn validate_check_commands(config: &V4HookConfig) -> Result<()> {
+    for (label, command) in [
+        ("checks.unit", &config.checks.unit),
+        ("checks.fuzz", &config.checks.fuzz),
+        ("checks.invariant", &config.checks.invariant),
+        ("checks.staticAnalysis", &config.checks.static_analysis),
+    ] {
+        validate_command(command, label)?;
+    }
+    validate_foundry_test_command(&config.checks.unit, "checks.unit")?;
+    validate_foundry_test_command(&config.checks.fuzz, "checks.fuzz")?;
+    validate_foundry_test_command(&config.checks.invariant, "checks.invariant")?;
     Ok(())
 }
 
@@ -81,10 +106,7 @@ pub fn load_config(config_file: impl AsRef<Path>) -> Result<LoadedConfig> {
     value.contract.constructor_args =
         normalize_hex(&value.contract.constructor_args, "constructorArgs")?;
     permission_flags(&value.contract.permissions)?;
-    validate_command(&value.checks.unit, "checks.unit")?;
-    validate_command(&value.checks.fuzz, "checks.fuzz")?;
-    validate_command(&value.checks.invariant, "checks.invariant")?;
-    validate_command(&value.checks.static_analysis, "checks.staticAnalysis")?;
+    validate_check_commands(&value)?;
     if value.simulation.max_fork_block_drift == 0 {
         bail!("simulation.maxForkBlockDrift must be positive");
     }

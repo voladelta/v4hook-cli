@@ -370,7 +370,7 @@ fn restore_files(backups: &BTreeMap<PathBuf, Option<Vec<u8>>>) {
 
 fn validate_updated_project(root: &Path) -> Result<()> {
     for parts in [&["forge", "build"][..], &["forge", "test"][..]] {
-        require_success(&command(parts), root, None, true)?;
+        require_success(&command(parts), root, None, false)?;
     }
     Ok(())
 }

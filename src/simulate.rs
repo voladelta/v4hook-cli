@@ -10,9 +10,9 @@ use crate::{
     model::{CommandEvidence, SimulationEvidence},
     permissions::probe_hook_permissions,
     plan::{absolute_path, read_deployment_plan, verify_plan_inputs},
-    process::{redact_command, require_success},
+    process::{FoundryTestKind, redact_command, require_foundry_tests, require_success},
     rpc::{block_hash, code_at},
-    util::{calculate_digest, interpolate, now_iso, sha256_bytes, write_json},
+    util::{calculate_digest, interpolate, now_iso, sha256_bytes, status, write_json},
 };
 
 #[allow(clippy::too_many_lines)]
@@ -20,6 +20,7 @@ pub fn simulate_deployment(
     plan_file: impl AsRef<Path>,
     output_file: Option<&Path>,
 ) -> Result<SimulationEvidence> {
+    status("Verifying the deployment plan and project inputs...");
     let absolute_plan_file = absolute_path(plan_file)?;
     let plan = read_deployment_plan(&absolute_plan_file)?;
     verify_plan_inputs(&plan)?;
@@ -31,6 +32,7 @@ pub fn simulate_deployment(
     }
 
     let project_root = Path::new(&plan.project_root);
+    status("Starting a pinned Anvil fork...");
     let mut anvil = start_anvil(
         &target_rpc,
         plan.network.fork_block_number,
@@ -86,13 +88,29 @@ pub fn simulate_deployment(
         ]);
         let mut commands = Vec::new();
         for step in &plan.simulation.steps {
+            status(&format!(
+                "Running {} simulation step...",
+                step.kind.as_str()
+            ));
             let command = step
                 .command
                 .iter()
                 .map(|part| interpolate(part, &variables))
                 .collect::<Result<Vec<_>>>()?;
-            let command_result =
-                require_success(&command, project_root, Some(&environment), false)?;
+            let command_result = if matches!(
+                step.kind,
+                crate::model::SimulationKind::Quadrants
+                    | crate::model::SimulationKind::Postconditions
+            ) {
+                require_foundry_tests(
+                    &command,
+                    project_root,
+                    Some(&environment),
+                    FoundryTestKind::Any,
+                )?
+            } else {
+                require_success(&command, project_root, Some(&environment), false)?
+            };
             commands.push(CommandEvidence {
                 kind: step.kind.clone(),
                 command: redact_command(&command),

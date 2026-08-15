@@ -17,7 +17,7 @@ use crate::{
     permissions::{permission_flags, permission_suffix, verify_address_flags},
     process::{command, require_success},
     rpc::{block_hash, block_number, chain_id, code_at},
-    util::{assert_digest, now_iso, resolve_from, sha256_bytes, sha256_file},
+    util::{assert_digest, now_iso, resolve_from, sha256_bytes, sha256_file, status},
 };
 
 pub const RUST_TOOLCHAIN: &str = "1.97.1";
@@ -87,6 +87,7 @@ pub fn source_identity(cwd: &Path) -> Result<SourceIdentity> {
 }
 
 pub fn create_deployment_plan(config: &LoadedConfig) -> Result<DeploymentPlan> {
+    status("Checking the target network...");
     let rpc_url = rpc_url_from_env(&config.value.network.rpc_url_env)?;
     let actual_chain_id = chain_id(&rpc_url)?;
     if actual_chain_id != config.value.network.chain_id {
@@ -104,6 +105,7 @@ pub fn create_deployment_plan(config: &LoadedConfig) -> Result<DeploymentPlan> {
         &config.value.contract.constructor_args,
     )?;
     let flags = permission_flags(&config.value.contract.permissions)?;
+    status("Mining a CREATE2 address with the required hook flags...");
     let (predicted_address, salt) = mine_create2(
         &init_code,
         &config.value.network.create2_deployer,
@@ -123,6 +125,7 @@ pub fn create_deployment_plan(config: &LoadedConfig) -> Result<DeploymentPlan> {
         ("permit2", &config.value.network.permit2),
         ("create2Deployer", &config.value.network.create2_deployer),
     ];
+    status("Pinning deployed dependency code hashes...");
     let mut contracts = BTreeMap::new();
     for (name, address) in configured_contracts {
         let code = code_at(&rpc_url, address)?;

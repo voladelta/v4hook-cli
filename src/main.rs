@@ -16,7 +16,10 @@ mod simulate;
 mod template;
 mod util;
 
-use std::path::PathBuf;
+use std::{
+    io::{self, IsTerminal},
+    path::PathBuf,
+};
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -41,9 +44,13 @@ use crate::{
 #[command(
     name = "v4hook",
     version,
-    about = "Foundry-backed verification and launch gates for Uniswap v4 hooks"
+    about = "Foundry-backed verification and launch gates for Uniswap v4 hooks",
+    after_help = "Examples:\n  v4hook init ../my-hook\n  v4hook doctor --config v4hook.config.json\n  v4hook plan --config v4hook.config.json --output .v4hook/deployment-plan.json\n\nDocumentation and support: https://github.com/voladelta/v4hook-cli"
 )]
 struct Cli {
+    /// Print JSON even when stdout is an interactive terminal.
+    #[arg(long, global = true)]
+    json: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -157,12 +164,14 @@ struct DeployArgs {
 
 #[derive(Subcommand)]
 enum PoolCommand {
+    /// Bind the pool parameters to a verified hook deployment plan.
     Plan {
         #[arg(short = 'd', long)]
         deployment_plan: PathBuf,
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Exercise pool creation and swap gates on a pinned Anvil fork.
     Simulate {
         #[arg(short = 'd', long)]
         deployment_plan: PathBuf,
@@ -171,6 +180,7 @@ enum PoolCommand {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Rerun the fork gates, broadcast the pool launch, and verify live state.
     Launch(PoolLaunchArgs),
 }
 
@@ -194,29 +204,61 @@ struct PoolLaunchArgs {
     record_output: PathBuf,
 }
 
-fn print_json(value: &impl Serialize) -> Result<()> {
-    println!("{}", serde_json::to_string_pretty(value)?);
+fn print_output(value: &impl Serialize, human: &str, force_json: bool) -> Result<()> {
+    if force_json || !io::stdout().is_terminal() {
+        println!("{}", serde_json::to_string_pretty(value)?);
+    } else {
+        println!("{human}");
+    }
     Ok(())
+}
+
+fn text_field<'a>(value: &'a serde_json::Value, field: &str) -> &'a str {
+    value
+        .get(field)
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown")
 }
 
 #[allow(clippy::too_many_lines)]
 fn run() -> Result<i32> {
-    match Cli::parse().command {
-        Command::Init { directory } => print_json(&initialize_project(&directory)?)?,
+    let cli = Cli::parse();
+    let force_json = cli.json;
+    match cli.command {
+        Command::Init { directory } => {
+            let result = initialize_project(&directory)?;
+            print_output(
+                &result,
+                &format!(
+                    "Created {}.\nNext: cd {}",
+                    text_field(&result, "directory"),
+                    text_field(&result, "directory")
+                ),
+                force_json,
+            )?;
+        }
         Command::Scaffold { command } => match command {
             ScaffoldCommand::Update {
                 directory,
                 dry_run,
                 conflicts,
-            } => print_json(&update_scaffold(&ScaffoldUpdateInput {
-                directory: &directory,
-                dry_run,
-                conflicts: conflicts.map(|policy| match policy {
-                    ConflictPolicy::Abort => scaffold::ConflictPolicy::Abort,
-                    ConflictPolicy::Preserve => scaffold::ConflictPolicy::Preserve,
-                    ConflictPolicy::Overwrite => scaffold::ConflictPolicy::Overwrite,
-                }),
-            })?)?,
+            } => {
+                let result = update_scaffold(&ScaffoldUpdateInput {
+                    directory: &directory,
+                    dry_run,
+                    conflicts: conflicts.map(|policy| match policy {
+                        ConflictPolicy::Abort => scaffold::ConflictPolicy::Abort,
+                        ConflictPolicy::Preserve => scaffold::ConflictPolicy::Preserve,
+                        ConflictPolicy::Overwrite => scaffold::ConflictPolicy::Overwrite,
+                    }),
+                })?;
+                let action = if dry_run { "Previewed" } else { "Updated" };
+                print_output(
+                    &result,
+                    &format!("{action} scaffold in {}.", result.directory),
+                    force_json,
+                )?;
+            }
         },
         Command::Template { command } => match command {
             TemplateCommand::Refresh {
@@ -224,12 +266,22 @@ fn run() -> Result<i32> {
                 source,
                 reference,
                 repository,
-            } => print_json(&refresh_template(&TemplateRefreshInput {
-                repository: &repository,
-                version: &version,
-                source: &source,
-                reference: &reference,
-            })?)?,
+            } => {
+                let result = refresh_template(&TemplateRefreshInput {
+                    repository: &repository,
+                    version: &version,
+                    source: &source,
+                    reference: &reference,
+                })?;
+                print_output(
+                    &result,
+                    &format!(
+                        "Prepared template {} from {} at {}.",
+                        result.template_version, result.source, result.commit
+                    ),
+                    force_json,
+                )?;
+            }
         },
         Command::Doctor { config } => {
             let config = config.as_ref().map(load_config).transpose()?;
@@ -238,43 +290,79 @@ fn run() -> Result<i32> {
                 .get("ok")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false);
-            print_json(&result)?;
+            let human = if ok {
+                "Toolchain and project configuration are ready."
+            } else {
+                "Doctor found missing requirements. Run with --json for details."
+            };
+            print_output(&result, human, force_json)?;
             if !ok {
                 return Ok(2);
             }
         }
         Command::Check { config } => {
             let config = load_config(config)?;
-            print_json(&json!({"ok": true, "checks": run_check_suite(&config)?}))?;
+            let checks = run_check_suite(&config)?;
+            let result = json!({"ok": true, "checks": checks});
+            print_output(&result, "All configured checks passed.", force_json)?;
         }
         Command::Plan { config, output } => {
             let plan = create_deployment_plan(&load_config(config)?)?;
             write_json(&output, &plan)?;
-            print_json(&json!({
+            let result = json!({
                 "ok": true,
                 "output": output,
                 "digest": plan.digest,
                 "predictedAddress": plan.hook.predicted_address,
-            }))?;
+            });
+            print_output(
+                &result,
+                &format!(
+                    "Wrote deployment plan to {}.\nPredicted hook: {}",
+                    output.display(),
+                    plan.hook.predicted_address
+                ),
+                force_json,
+            )?;
         }
         Command::Simulate { plan, output } => {
             let evidence = simulate_deployment(&plan, Some(&output))?;
-            print_json(&json!({"ok": true, "output": output, "digest": evidence.digest}))?;
+            let result = json!({"ok": true, "output": output, "digest": evidence.digest});
+            print_output(
+                &result,
+                &format!("Fork simulation passed. Evidence: {}", output.display()),
+                force_json,
+            )?;
         }
-        Command::Deploy(args) => print_json(&deploy_hook(&DeployInput {
-            plan_file: &args.plan,
-            account: &args.account,
-            sender: &args.sender,
-            confirmation: &args.confirm,
-            mainnet: args.mainnet,
-            verify: args.verify,
-            evidence_output: &args.evidence_output,
-            record_output: &args.record_output,
-        })?)?,
+        Command::Deploy(args) => {
+            let result = deploy_hook(&DeployInput {
+                plan_file: &args.plan,
+                account: &args.account,
+                sender: &args.sender,
+                confirmation: &args.confirm,
+                mainnet: args.mainnet,
+                verify: args.verify,
+                evidence_output: &args.evidence_output,
+                record_output: &args.record_output,
+            })?;
+            print_output(
+                &result,
+                &format!(
+                    "Deployed and verified hook {}.\nRecord: {}",
+                    text_field(&result, "hookAddress"),
+                    args.record_output.display()
+                ),
+                force_json,
+            )?;
+        }
         Command::Verify { plan } => {
             let (address, runtime_code_hash) = verify_hook_deployment(plan)?;
-            print_json(
-                &json!({"ok": true, "address": address, "runtimeCodeHash": runtime_code_hash}),
+            let result =
+                json!({"ok": true, "address": address, "runtimeCodeHash": runtime_code_hash});
+            print_output(
+                &result,
+                &format!("Verified hook {address}.\nRuntime code hash: {runtime_code_hash}"),
+                force_json,
             )?;
         }
         Command::Pool { command } => match command {
@@ -284,7 +372,12 @@ fn run() -> Result<i32> {
             } => {
                 let plan = create_pool_plan(&deployment_plan)?;
                 write_json(&output, &plan)?;
-                print_json(&json!({"ok": true, "output": output, "digest": plan.digest}))?;
+                let result = json!({"ok": true, "output": output, "digest": plan.digest});
+                print_output(
+                    &result,
+                    &format!("Wrote pool plan to {}.", output.display()),
+                    force_json,
+                )?;
             }
             PoolCommand::Simulate {
                 deployment_plan,
@@ -296,18 +389,37 @@ fn run() -> Result<i32> {
                     pool_plan: &pool_plan,
                     output: Some(&output),
                 })?;
-                print_json(&json!({"ok": true, "output": output, "digest": evidence.digest}))?;
+                let result = json!({"ok": true, "output": output, "digest": evidence.digest});
+                print_output(
+                    &result,
+                    &format!(
+                        "Pool fork simulation passed. Evidence: {}",
+                        output.display()
+                    ),
+                    force_json,
+                )?;
             }
-            PoolCommand::Launch(args) => print_json(&launch_pool(&LaunchPoolInput {
-                deployment_plan: &args.deployment_plan,
-                pool_plan: &args.pool_plan,
-                account: &args.account,
-                sender: &args.sender,
-                confirmation: &args.confirm,
-                mainnet: args.mainnet,
-                evidence_output: &args.evidence_output,
-                record_output: &args.record_output,
-            })?)?,
+            PoolCommand::Launch(args) => {
+                let result = launch_pool(&LaunchPoolInput {
+                    deployment_plan: &args.deployment_plan,
+                    pool_plan: &args.pool_plan,
+                    account: &args.account,
+                    sender: &args.sender,
+                    confirmation: &args.confirm,
+                    mainnet: args.mainnet,
+                    evidence_output: &args.evidence_output,
+                    record_output: &args.record_output,
+                })?;
+                print_output(
+                    &result,
+                    &format!(
+                        "Launched and verified the pool for hook {}.\nRecord: {}",
+                        text_field(&result, "hookAddress"),
+                        args.record_output.display()
+                    ),
+                    force_json,
+                )?;
+            }
         },
     }
     Ok(0)

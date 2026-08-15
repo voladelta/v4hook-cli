@@ -43,16 +43,26 @@ pub fn doctor(config: Option<&LoadedConfig>) -> Value {
             command_exists(analyzer).then(|| analyzer.clone()),
         );
     }
-    let missing: Vec<&str> = tools
+    let mut missing: Vec<String> = tools
         .iter()
-        .filter_map(|(name, value)| value.is_none().then_some(name.as_str()))
+        .filter(|(_, value)| value.is_none())
+        .map(|(name, _)| name.clone())
         .collect();
+    let rpc_configured = config.map(|value| {
+        std::env::var(&value.value.network.rpc_url_env)
+            .ok()
+            .is_some_and(|value| !value.trim().is_empty())
+    });
+    if let (Some(config), Some(false)) = (config, rpc_configured) {
+        let name = &config.value.network.rpc_url_env;
+        missing.push(format!("environment variable {name}"));
+    }
     json!({
-        "ok": missing.is_empty(),
+        "ok": missing.is_empty() && rpc_configured.unwrap_or(true),
         "tools": tools,
         "missing": missing,
         "projectRoot": config.map(|value| value.project_root.clone()),
-        "rpcConfigured": config.map(|value| std::env::var_os(&value.value.network.rpc_url_env).is_some()),
+        "rpcConfigured": rpc_configured,
         "staticAnalysisCommand": config.map(|value| value.value.checks.static_analysis.clone()),
     })
 }

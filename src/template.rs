@@ -16,8 +16,9 @@ use crate::{
     process::{command, require_success},
     scaffold::{
         LOCK_FILE, METADATA_FILE, ProjectMetadata, ProjectTemplateMetadata, TemplateLock,
-        seal_scaffold,
+        read_metadata, seal_scaffold,
     },
+    util::status,
 };
 
 const PRESERVED_PATHS: [&str; 7] = [
@@ -400,7 +401,16 @@ fn validate_scaffold(root: &Path) -> Result<()> {
         &["forge", "build"][..],
         &["forge", "test"][..],
     ] {
-        require_success(&command(parts), root, None, true)?;
+        require_success(&command(parts), root, None, false)?;
+    }
+    Ok(())
+}
+
+fn require_newer_version(current: &str, next: &Version) -> Result<()> {
+    let current =
+        Version::parse(current).context("current template version is not valid SemVer")?;
+    if next <= &current {
+        bail!("template version {next} must be greater than current version {current}")
     }
     Ok(())
 }
@@ -444,7 +454,9 @@ pub fn refresh_template(input: &TemplateRefreshInput<'_>) -> Result<TemplateRefr
             destination.display()
         )
     }
+    require_newer_version(&read_metadata(&destination)?.template.version, &version)?;
     let (owner, repository) = validate_source(input.source)?;
+    status("Resolving the upstream template revision...");
     let client = github_client()?;
     let commit: CommitResponse = github_json(
         &client,
@@ -461,6 +473,7 @@ pub fn refresh_template(input: &TemplateRefreshInput<'_>) -> Result<TemplateRefr
     remove_if_exists(&temporary)?;
     fs::create_dir_all(&temporary)?;
     let result: Result<BTreeMap<String, String>> = (|| {
+        status("Downloading and preparing the upstream template...");
         let archive = download(
             &client,
             &format!(
@@ -496,7 +509,7 @@ pub fn refresh_template(input: &TemplateRefreshInput<'_>) -> Result<TemplateRefr
         remove_if_exists(&temporary.join("lib"))?;
         remove_if_exists(&temporary.join(".gitmodules"))?;
         preserve_v4hook_files(&destination, &temporary)?;
-        require_success(&command(&["forge", "fmt"]), &temporary, None, true)?;
+        require_success(&command(&["forge", "fmt"]), &temporary, None, false)?;
 
         let metadata = ProjectMetadata {
             schema_version: 1,
@@ -526,6 +539,7 @@ pub fn refresh_template(input: &TemplateRefreshInput<'_>) -> Result<TemplateRefr
         lock_bytes.push(b'\n');
         fs::write(temporary.join(LOCK_FILE), lock_bytes)?;
         seal_scaffold(&temporary)?;
+        status("Validating the prepared template with Foundry...");
         validate_scaffold(&temporary)?;
         remove_if_exists(&temporary.join("out"))?;
         remove_if_exists(&temporary.join("cache"))?;
@@ -549,6 +563,13 @@ pub fn refresh_template(input: &TemplateRefreshInput<'_>) -> Result<TemplateRefr
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn template_refresh_requires_a_version_increase() {
+        assert!(require_newer_version("1.2.3", &Version::parse("1.2.4").unwrap()).is_ok());
+        assert!(require_newer_version("1.2.3", &Version::parse("1.2.3").unwrap()).is_err());
+        assert!(require_newer_version("1.2.3", &Version::parse("1.1.0").unwrap()).is_err());
+    }
 
     #[test]
     fn normalizes_supported_github_urls() {

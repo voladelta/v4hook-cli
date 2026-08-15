@@ -4,8 +4,8 @@ use anyhow::Result;
 
 use crate::{
     model::{CheckEvidence, LoadedConfig},
-    process::{CommandResult, require_success},
-    util::sha256_bytes,
+    process::{CommandResult, FoundryTestKind, require_foundry_tests, require_success},
+    util::{sha256_bytes, status},
 };
 
 fn evidence(name: &str, result: &CommandResult) -> CheckEvidence {
@@ -23,22 +23,45 @@ pub fn run_check_suite(config: &LoadedConfig) -> Result<Vec<CheckEvidence>> {
         (
             "format",
             ["forge", "fmt", "--check"].map(str::to_owned).to_vec(),
+            None,
         ),
-        ("lint", ["forge", "lint"].map(str::to_owned).to_vec()),
+        ("lint", ["forge", "lint"].map(str::to_owned).to_vec(), None),
         (
             "static-analysis",
             config.value.checks.static_analysis.clone(),
+            None,
         ),
-        ("build", ["forge", "build"].map(str::to_owned).to_vec()),
-        ("unit", config.value.checks.unit.clone()),
-        ("fuzz", config.value.checks.fuzz.clone()),
-        ("invariant", config.value.checks.invariant.clone()),
+        (
+            "build",
+            ["forge", "build"].map(str::to_owned).to_vec(),
+            None,
+        ),
+        (
+            "unit",
+            config.value.checks.unit.clone(),
+            Some(FoundryTestKind::Unit),
+        ),
+        (
+            "fuzz",
+            config.value.checks.fuzz.clone(),
+            Some(FoundryTestKind::Fuzz),
+        ),
+        (
+            "invariant",
+            config.value.checks.invariant.clone(),
+            Some(FoundryTestKind::Invariant),
+        ),
     ];
     let cwd = Path::new(&config.project_root);
     commands
         .into_iter()
-        .map(|(name, command)| {
-            let result = require_success(&command, cwd, None, false)?;
+        .map(|(name, command, test_kind)| {
+            status(&format!("Running {name} check..."));
+            let result = if let Some(kind) = test_kind {
+                require_foundry_tests(&command, cwd, None, kind)?
+            } else {
+                require_success(&command, cwd, None, false)?
+            };
             Ok(evidence(name, &result))
         })
         .collect()

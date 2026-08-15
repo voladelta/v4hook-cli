@@ -113,6 +113,7 @@ pub fn start_anvil(
             .lock()
             .map(|value| value.trim().to_owned())
             .unwrap_or_default();
+        let output = output.replace(target_rpc_url, "[REDACTED RPC URL]");
         if output.is_empty() {
             bail!("failed to start Anvil: {error}");
         }

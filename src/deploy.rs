@@ -12,7 +12,7 @@ use crate::{
     process::{redact_command, require_success},
     rpc::{block_number, chain_id, code_at},
     simulate::simulate_deployment,
-    util::{normalize_address, now_iso, sha256_bytes, write_json},
+    util::{normalize_address, now_iso, sha256_bytes, status, write_json},
 };
 
 pub fn verify_network_at_rpc(
@@ -104,6 +104,7 @@ pub fn deploy_hook(input: &DeployInput<'_>) -> Result<Value> {
         bail!("confirmation mismatch; expected {expected_confirmation}");
     }
     let sender = normalize_address(input.sender, "sender")?;
+    status("Rerunning the mandatory fork simulation before broadcast...");
     let evidence = simulate_deployment(&plan_file, Some(input.evidence_output))?;
     verify_plan_inputs(&plan)?;
     let rpc_url = rpc_url_from_env(&plan.network.rpc_url_env)?;
@@ -144,7 +145,9 @@ pub fn deploy_hook(input: &DeployInput<'_>) -> Result<Value> {
                 .map_or_else(String::new, |value| value.address.clone()),
         ),
     ]);
+    status("Broadcasting the planned hook deployment...");
     let result = require_success(&command, &plan.project_root, Some(&environment), false)?;
+    status("Verifying the live hook bytecode and permissions...");
     let (hook_address, runtime_code_hash) = verify_hook_at_rpc(&plan, &rpc_url)?;
     if runtime_code_hash != evidence.deployed_runtime_code_hash {
         bail!("live runtime code hash differs from the mandatory fork simulation");

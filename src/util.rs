@@ -1,5 +1,6 @@
 use std::{
     fs,
+    io::{self, IsTerminal},
     path::{Path, PathBuf},
 };
 
@@ -121,6 +122,12 @@ pub fn interpolate(
 
 pub fn now_iso() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
+}
+
+pub fn status(message: &str) {
+    if io::stderr().is_terminal() {
+        eprintln!("{message}");
+    }
 }
 
 pub fn write_json(path: impl AsRef<Path>, value: &impl Serialize) -> Result<()> {

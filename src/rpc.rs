@@ -23,7 +23,12 @@ struct RpcResponse<T> {
 }
 
 pub fn rpc<T: DeserializeOwned>(url: &str, method: &str, params: &[Value]) -> Result<T> {
-    let response = Client::new()
+    let client = Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(45))
+        .build()
+        .context("build RPC client")?;
+    let response = client
         .post(url)
         .json(&json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}))
         .send()

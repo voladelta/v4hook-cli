@@ -9,11 +9,11 @@ use crate::{
     deploy::{verify_hook_at_rpc, verify_hook_deployment, verify_network_at_rpc},
     model::{CommandEvidence, DeploymentPlan, PoolPlan, PoolSimulationEvidence},
     plan::{absolute_path, read_deployment_plan, verify_plan_inputs},
-    process::{redact_command, require_success},
+    process::{FoundryTestKind, redact_command, require_foundry_tests, require_success},
     rpc::{block_hash, block_number, chain_id},
     util::{
         assert_digest, calculate_digest, interpolate, normalize_address, now_iso, read_json,
-        sha256_bytes, write_json,
+        sha256_bytes, status, write_json,
     },
 };
 
@@ -22,6 +22,7 @@ fn target_rpc(plan: &DeploymentPlan) -> Result<String> {
 }
 
 pub fn create_pool_plan(deployment_plan_file: impl AsRef<Path>) -> Result<PoolPlan> {
+    status("Verifying the live hook before planning the pool...");
     let deployment_plan_file = deployment_plan_file.as_ref();
     let deployment = read_deployment_plan(deployment_plan_file)?;
     verify_plan_inputs(&deployment)?;
@@ -152,6 +153,7 @@ pub struct SimulatePoolInput<'a> {
 }
 
 pub fn simulate_pool(input: &SimulatePoolInput<'_>) -> Result<PoolSimulationEvidence> {
+    status("Verifying the pool plan and deployment inputs...");
     let deployment = read_deployment_plan(input.deployment_plan)?;
     verify_plan_inputs(&deployment)?;
     let pool = read_pool_plan(input.pool_plan)?;
@@ -164,6 +166,7 @@ pub fn simulate_pool(input: &SimulatePoolInput<'_>) -> Result<PoolSimulationEvid
         bail!("pool fork block hash changed");
     }
     let project_root = Path::new(&deployment.project_root);
+    status("Starting a pinned Anvil fork for the pool simulation...");
     let mut anvil = start_anvil(
         &rpc_url,
         pool.fork_block_number,
@@ -185,12 +188,29 @@ pub fn simulate_pool(input: &SimulatePoolInput<'_>) -> Result<PoolSimulationEvid
         let environment = pool_env(&pool, &anvil.rpc_url, &anvil.sender);
         let mut commands = Vec::new();
         for step in &pool.pool.simulation_steps {
+            status(&format!(
+                "Running {} pool simulation step...",
+                step.kind.as_str()
+            ));
             let command = step
                 .command
                 .iter()
                 .map(|part| interpolate(part, &variables))
                 .collect::<Result<Vec<_>>>()?;
-            let result = require_success(&command, project_root, Some(&environment), false)?;
+            let result = if matches!(
+                step.kind,
+                crate::model::SimulationKind::Quadrants
+                    | crate::model::SimulationKind::Postconditions
+            ) {
+                require_foundry_tests(
+                    &command,
+                    project_root,
+                    Some(&environment),
+                    FoundryTestKind::Any,
+                )?
+            } else {
+                require_success(&command, project_root, Some(&environment), false)?
+            };
             commands.push(CommandEvidence {
                 kind: step.kind.clone(),
                 command: redact_command(&command),
@@ -251,6 +271,7 @@ pub fn launch_pool(input: &LaunchPoolInput<'_>) -> Result<Value> {
         bail!("confirmation mismatch; expected {expected}");
     }
     let sender = normalize_address(input.sender, "sender")?;
+    status("Rerunning the mandatory pool fork simulation before broadcast...");
     let evidence = simulate_pool(&SimulatePoolInput {
         deployment_plan: input.deployment_plan,
         pool_plan: input.pool_plan,
@@ -283,6 +304,7 @@ pub fn launch_pool(input: &LaunchPoolInput<'_>) -> Result<Value> {
         "--broadcast".to_owned(),
     ];
     let environment = pool_env(&pool, &rpc_url, &sender);
+    status("Broadcasting the planned pool launch...");
     let launch_result =
         require_success(&launch, &deployment.project_root, Some(&environment), false)?;
     let pool_plan_path = absolute_path(input.pool_plan)?;
@@ -293,6 +315,7 @@ pub fn launch_pool(input: &LaunchPoolInput<'_>) -> Result<Value> {
         .iter()
         .map(|part| interpolate(part, &variables))
         .collect::<Result<Vec<_>>>()?;
+    status("Verifying the live pool state...");
     let verify_result = require_success(
         &live_verify,
         &deployment.project_root,
