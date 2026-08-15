@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 
-use crate::rpc::wait_for_rpc;
+use crate::rpc::{block_hash, block_number, chain_id, reset_fork, wait_for_rpc};
 
 pub const ANVIL_DEFAULT_SENDER: &str = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
 
@@ -56,8 +56,9 @@ fn reject_reserved_args(args: &[String]) -> Result<()> {
 
 pub fn start_anvil(
     target_rpc_url: &str,
+    target_rpc_env_name: &str,
     fork_block_number: u64,
-    chain_id: u64,
+    expected_chain_id: u64,
     extra_args: &[String],
     cwd: &Path,
 ) -> Result<AnvilHandle> {
@@ -71,11 +72,7 @@ pub fn start_anvil(
         "--port".to_owned(),
         port.to_string(),
         "--chain-id".to_owned(),
-        chain_id.to_string(),
-        "--fork-url".to_owned(),
-        target_rpc_url.to_owned(),
-        "--fork-block-number".to_owned(),
-        fork_block_number.to_string(),
+        expected_chain_id.to_string(),
     ]
     .into_iter()
     .chain(extra_args.iter().cloned())
@@ -83,6 +80,7 @@ pub fn start_anvil(
     let mut child = Command::new("anvil")
         .args(&args)
         .current_dir(cwd)
+        .env_remove(target_rpc_env_name)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -118,6 +116,29 @@ pub fn start_anvil(
             bail!("failed to start Anvil: {error}");
         }
         bail!("failed to start Anvil: {error}: {output}");
+    }
+    let configure_fork = || -> Result<()> {
+        reset_fork(&rpc_url, target_rpc_url, fork_block_number)?;
+        if chain_id(&rpc_url)? != expected_chain_id {
+            bail!("local Anvil chain ID does not match the target network");
+        }
+        if block_number(&rpc_url)? != fork_block_number {
+            bail!("local Anvil did not reset to the pinned fork block");
+        }
+        if block_hash(&rpc_url, fork_block_number)?
+            != block_hash(target_rpc_url, fork_block_number)?
+        {
+            bail!("local Anvil fork block hash does not match the target network");
+        }
+        Ok(())
+    };
+    if let Err(error) = configure_fork() {
+        let _ = child.kill();
+        let _ = child.wait();
+        let error = error
+            .to_string()
+            .replace(target_rpc_url, "[REDACTED RPC URL]");
+        bail!("failed to configure Anvil fork: {error}");
     }
     Ok(AnvilHandle {
         rpc_url,

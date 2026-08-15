@@ -65,6 +65,18 @@ cast wallet import deployer --interactive
 
 Do not put a private key in the command or repository.
 
+## Configure a remote RPC
+
+Copy the safe example before using v4hook against a testnet or mainnet:
+
+```sh
+cp .env.example .env
+```
+
+Set the RPC variable named by `network.rpcUrlEnv` in `.env`. Authenticated Alchemy or other paid endpoints are supported. The v4hook CLI reads this project-local file without putting the endpoint in Anvil, Forge or Cast process arguments.
+
+`DEPLOYER_ADDRESS` is public and may be stored in `.env`. Keep private keys, mnemonics and passwords out of `.env`; use `cast wallet import deployer --interactive` and pass `--account deployer` to v4hook.
+
 ## Prepare your hook
 
 Replace the example contract and tests with your implementation. Update your deployment configuration with:

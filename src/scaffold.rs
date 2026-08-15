@@ -578,6 +578,9 @@ mod tests {
         let root = temporary.path().join("project");
         fs::create_dir(&root).unwrap();
         SCAFFOLD.extract(&root).unwrap();
+        let metadata = read_metadata(&root).unwrap();
+        assert_eq!(metadata.created_with_cli, env!("CARGO_PKG_VERSION"));
+        assert_eq!(metadata.last_updated_with_cli, env!("CARGO_PKG_VERSION"));
         let expected_lock = fs::read(root.join(LOCK_FILE)).unwrap();
         let expected_metadata = fs::read(root.join(METADATA_FILE)).unwrap();
 

@@ -76,6 +76,6 @@
         "command": ["forge", "test", "--match-path", "test/fork/Postconditions.t.sol", "--fork-url", "{anvilRpc}"]
       }
     ],
-    "liveVerify": ["forge", "script", "script/VerifyPool.s.sol:VerifyPool", "--rpc-url", "{rpcUrl}"]
+    "liveVerify": ["forge", "script", "script/VerifyPool.s.sol:VerifyPool"]
   }
 }

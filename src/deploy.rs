@@ -61,7 +61,7 @@ pub fn verify_hook_at_rpc(plan: &DeploymentPlan, rpc_url: &str) -> Result<(Strin
 
 pub fn verify_hook_deployment(plan_file: impl AsRef<Path>) -> Result<(String, String)> {
     let plan = read_deployment_plan(plan_file)?;
-    let rpc_url = rpc_url_from_env(&plan.network.rpc_url_env)?;
+    let rpc_url = rpc_url_from_env(&plan.network.rpc_url_env, Path::new(&plan.project_root))?;
     verify_network_at_rpc(&plan, &rpc_url, false)?;
     verify_hook_at_rpc(&plan, &rpc_url)
 }
@@ -107,7 +107,7 @@ pub fn deploy_hook(input: &DeployInput<'_>) -> Result<Value> {
     status("Rerunning the mandatory fork simulation before broadcast...");
     let evidence = simulate_deployment(&plan_file, Some(input.evidence_output))?;
     verify_plan_inputs(&plan)?;
-    let rpc_url = rpc_url_from_env(&plan.network.rpc_url_env)?;
+    let rpc_url = rpc_url_from_env(&plan.network.rpc_url_env, Path::new(&plan.project_root))?;
     require_fresh_fork(&plan, &rpc_url)?;
     verify_network_at_rpc(&plan, &rpc_url, true)?;
 
@@ -115,8 +115,6 @@ pub fn deploy_hook(input: &DeployInput<'_>) -> Result<Value> {
         "forge".to_owned(),
         "script".to_owned(),
         plan.deployment.script.clone(),
-        "--rpc-url".to_owned(),
-        rpc_url.clone(),
         "--account".to_owned(),
         input.account.to_owned(),
         "--sender".to_owned(),
@@ -144,6 +142,8 @@ pub fn deploy_hook(input: &DeployInput<'_>) -> Result<Value> {
                 .get("poolManager")
                 .map_or_else(String::new, |value| value.address.clone()),
         ),
+        ("FOUNDRY_ETH_RPC_URL".to_owned(), rpc_url.clone()),
+        ("ETH_RPC_URL".to_owned(), rpc_url.clone()),
     ]);
     status("Broadcasting the planned hook deployment...");
     let result = require_success(&command, &plan.project_root, Some(&environment), false)?;

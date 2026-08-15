@@ -28,7 +28,7 @@ Do not install skills globally or commit downloaded skill directories unless the
 
 ## Preserve the launch invariants
 
-- Never put private keys, seed phrases or API keys in source files, commands, logs or chat output. Keep secret-bearing RPC URLs only in the environment variable named by the v4hook configuration; do not paste or echo them.
+- Never put private keys, seed phrases or keystore passwords in source files, commands, `.env`, logs or chat output. A project-local ignored `.env` may contain the configured RPC URL, explorer API credential and public deployer address. Never commit that file, and do not paste or echo credential-bearing URLs.
 - Do not sign, broadcast, deploy, verify on a live explorer or access a wallet unless the user explicitly authorizes that action and network.
 - Do not bypass the v4hook plan, mandatory pinned Anvil simulation, exact confirmation or separate pool-launch flow.
 - Keep hook permissions minimal and consistent with the deployed CREATE2 address flags.

@@ -18,7 +18,7 @@ use crate::{
 };
 
 fn target_rpc(plan: &DeploymentPlan) -> Result<String> {
-    rpc_url_from_env(&plan.network.rpc_url_env)
+    rpc_url_from_env(&plan.network.rpc_url_env, Path::new(&plan.project_root))
 }
 
 pub fn create_pool_plan(deployment_plan_file: impl AsRef<Path>) -> Result<PoolPlan> {
@@ -65,13 +65,10 @@ pub fn read_pool_plan(path: impl AsRef<Path>) -> Result<PoolPlan> {
 fn pool_variables(
     deployment: &DeploymentPlan,
     pool: &PoolPlan,
-    rpc_url: &str,
     sender: &str,
     pool_plan_path: &Path,
 ) -> BTreeMap<String, String> {
     BTreeMap::from([
-        ("rpcUrl".to_owned(), rpc_url.to_owned()),
-        ("anvilRpc".to_owned(), rpc_url.to_owned()),
         ("anvilSender".to_owned(), sender.to_owned()),
         ("hookAddress".to_owned(), pool.hook_address.clone()),
         (
@@ -107,9 +104,8 @@ fn pool_variables(
     ])
 }
 
-fn pool_env(pool: &PoolPlan, rpc_url: &str, sender: &str) -> BTreeMap<String, String> {
+fn pool_env(pool: &PoolPlan, sender: &str) -> BTreeMap<String, String> {
     BTreeMap::from([
-        ("V4HOOK_ANVIL_RPC_URL".to_owned(), rpc_url.to_owned()),
         ("V4HOOK_SIMULATOR_ADDRESS".to_owned(), sender.to_owned()),
         ("V4HOOK_POOL_PLAN_DIGEST".to_owned(), pool.digest.clone()),
         ("V4HOOK_HOOK_ADDRESS".to_owned(), pool.hook_address.clone()),
@@ -169,6 +165,7 @@ pub fn simulate_pool(input: &SimulatePoolInput<'_>) -> Result<PoolSimulationEvid
     status("Starting a pinned Anvil fork for the pool simulation...");
     let mut anvil = start_anvil(
         &rpc_url,
+        &deployment.network.rpc_url_env,
         pool.fork_block_number,
         pool.chain_id,
         &deployment.simulation.anvil_args,
@@ -178,14 +175,10 @@ pub fn simulate_pool(input: &SimulatePoolInput<'_>) -> Result<PoolSimulationEvid
         verify_network_at_rpc(&deployment, &anvil.rpc_url, false)?;
         verify_hook_at_rpc(&deployment, &anvil.rpc_url)?;
         let pool_plan_path = absolute_path(input.pool_plan)?;
-        let variables = pool_variables(
-            &deployment,
-            &pool,
-            &anvil.rpc_url,
-            &anvil.sender,
-            &pool_plan_path,
-        );
-        let environment = pool_env(&pool, &anvil.rpc_url, &anvil.sender);
+        let mut variables = pool_variables(&deployment, &pool, &anvil.sender, &pool_plan_path);
+        variables.insert("anvilRpc".to_owned(), anvil.rpc_url.clone());
+        let mut environment = pool_env(&pool, &anvil.sender);
+        environment.insert("V4HOOK_ANVIL_RPC_URL".to_owned(), anvil.rpc_url.clone());
         let mut commands = Vec::new();
         for step in &pool.pool.simulation_steps {
             status(&format!(
@@ -295,20 +288,20 @@ pub fn launch_pool(input: &LaunchPoolInput<'_>) -> Result<Value> {
         "forge".to_owned(),
         "script".to_owned(),
         pool.pool.launch_script.clone(),
-        "--rpc-url".to_owned(),
-        rpc_url.clone(),
         "--account".to_owned(),
         input.account.to_owned(),
         "--sender".to_owned(),
         sender.clone(),
         "--broadcast".to_owned(),
     ];
-    let environment = pool_env(&pool, &rpc_url, &sender);
+    let mut environment = pool_env(&pool, &sender);
+    environment.insert("FOUNDRY_ETH_RPC_URL".to_owned(), rpc_url.clone());
+    environment.insert("ETH_RPC_URL".to_owned(), rpc_url);
     status("Broadcasting the planned pool launch...");
     let launch_result =
         require_success(&launch, &deployment.project_root, Some(&environment), false)?;
     let pool_plan_path = absolute_path(input.pool_plan)?;
-    let variables = pool_variables(&deployment, &pool, &rpc_url, &sender, &pool_plan_path);
+    let variables = pool_variables(&deployment, &pool, &sender, &pool_plan_path);
     let live_verify = pool
         .pool
         .live_verify

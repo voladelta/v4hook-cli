@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, path::Path};
 use serde_json::{Value, json};
 
 use crate::{
+    config::rpc_url_from_env,
     model::LoadedConfig,
     plan::cli_identity,
     process::{command, command_exists, require_success},
@@ -49,13 +50,15 @@ pub fn doctor(config: Option<&LoadedConfig>) -> Value {
         .map(|(name, _)| name.clone())
         .collect();
     let rpc_configured = config.map(|value| {
-        std::env::var(&value.value.network.rpc_url_env)
-            .ok()
-            .is_some_and(|value| !value.trim().is_empty())
+        rpc_url_from_env(
+            &value.value.network.rpc_url_env,
+            Path::new(&value.project_root),
+        )
+        .is_ok()
     });
     if let (Some(config), Some(false)) = (config, rpc_configured) {
         let name = &config.value.network.rpc_url_env;
-        missing.push(format!("environment variable {name}"));
+        missing.push(format!("RPC setting {name} in the environment or .env"));
     }
     json!({
         "ok": missing.is_empty() && rpc_configured.unwrap_or(true),

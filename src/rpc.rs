@@ -5,24 +5,27 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use reqwest::blocking::Client;
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::util::normalize_hex;
 
-#[derive(Debug, Deserialize)]
-struct RpcError {
-    message: String,
+fn result_from_payload(payload: &Value, url: &str, method: &str) -> Result<Value> {
+    if let Some(error) = payload.get("error").filter(|error| !error.is_null()) {
+        let message = error
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown RPC error");
+        let message = message.replace(url, "[REDACTED RPC URL]");
+        bail!("RPC {method} failed: {message}");
+    }
+    payload
+        .get("result")
+        .cloned()
+        .with_context(|| format!("RPC {method} returned no result"))
 }
 
-#[derive(Debug, Deserialize)]
-struct RpcResponse<T> {
-    result: Option<T>,
-    error: Option<RpcError>,
-}
-
-pub fn rpc<T: DeserializeOwned>(url: &str, method: &str, params: &[Value]) -> Result<T> {
+fn rpc_value(url: &str, method: &str, params: &[Value]) -> Result<Value> {
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(45))
@@ -32,19 +35,33 @@ pub fn rpc<T: DeserializeOwned>(url: &str, method: &str, params: &[Value]) -> Re
         .post(url)
         .json(&json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}))
         .send()
-        .with_context(|| format!("RPC {method} request failed"))?;
+        .map_err(|_| anyhow::anyhow!("RPC {method} request failed"))?;
     if !response.status().is_success() {
         bail!("RPC {method} returned HTTP {}", response.status());
     }
-    let payload: RpcResponse<T> = response
+    let payload: Value = response
         .json()
-        .with_context(|| format!("decode RPC {method} response"))?;
-    if let Some(error) = payload.error {
-        bail!("RPC {method} failed: {}", error.message);
-    }
-    payload
-        .result
-        .with_context(|| format!("RPC {method} returned no result"))
+        .map_err(|_| anyhow::anyhow!("decode RPC {method} response"))?;
+    result_from_payload(&payload, url, method)
+}
+
+pub fn rpc<T: DeserializeOwned>(url: &str, method: &str, params: &[Value]) -> Result<T> {
+    serde_json::from_value(rpc_value(url, method, params)?)
+        .with_context(|| format!("decode RPC {method} result"))
+}
+
+pub fn reset_fork(local_url: &str, target_url: &str, block_number: u64) -> Result<()> {
+    rpc_value(
+        local_url,
+        "anvil_reset",
+        &[json!({
+            "forking": {
+                "jsonRpcUrl": target_url,
+                "blockNumber": block_number,
+            }
+        })],
+    )?;
+    Ok(())
 }
 
 fn parse_quantity(value: &str, label: &str) -> Result<u64> {
@@ -101,4 +118,38 @@ pub fn wait_for_rpc(url: &str, timeout: Duration) -> Result<()> {
         "Anvil RPC did not become ready within {}ms",
         timeout.as_millis()
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transport_errors_do_not_echo_rpc_credentials() {
+        let credential_url = "http://127.0.0.1:1/private-provider-token";
+        let error = chain_id(credential_url).unwrap_err();
+        assert!(!format!("{error:#}").contains(credential_url));
+    }
+
+    #[test]
+    fn accepts_null_error_and_redacts_rpc_errors() {
+        assert_eq!(
+            result_from_payload(
+                &json!({"result": null, "error": null}),
+                "https://provider.example/secret",
+                "anvil_reset",
+            )
+            .unwrap(),
+            Value::Null
+        );
+        let credential_url = "https://provider.example/secret";
+        let error = result_from_payload(
+            &json!({"error": {"message": format!("failed at {credential_url}")}}),
+            credential_url,
+            "eth_chainId",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(!error.contains(credential_url));
+    }
 }

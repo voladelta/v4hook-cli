@@ -26,7 +26,7 @@ pub fn simulate_deployment(
     verify_plan_inputs(&plan)?;
     let config = load_config(&plan.config_path)?;
     run_check_suite(&config)?;
-    let target_rpc = rpc_url_from_env(&plan.network.rpc_url_env)?;
+    let target_rpc = rpc_url_from_env(&plan.network.rpc_url_env, Path::new(&plan.project_root))?;
     if block_hash(&target_rpc, plan.network.fork_block_number)? != plan.network.fork_block_hash {
         bail!("planned fork block hash no longer matches the target chain");
     }
@@ -35,6 +35,7 @@ pub fn simulate_deployment(
     status("Starting a pinned Anvil fork...");
     let mut anvil = start_anvil(
         &target_rpc,
+        &plan.network.rpc_url_env,
         plan.network.fork_block_number,
         plan.network.chain_id,
         &plan.simulation.anvil_args,

@@ -88,7 +88,8 @@ pub fn source_identity(cwd: &Path) -> Result<SourceIdentity> {
 
 pub fn create_deployment_plan(config: &LoadedConfig) -> Result<DeploymentPlan> {
     status("Checking the target network...");
-    let rpc_url = rpc_url_from_env(&config.value.network.rpc_url_env)?;
+    let project_root = Path::new(&config.project_root);
+    let rpc_url = rpc_url_from_env(&config.value.network.rpc_url_env, project_root)?;
     let actual_chain_id = chain_id(&rpc_url)?;
     if actual_chain_id != config.value.network.chain_id {
         bail!(
@@ -97,7 +98,6 @@ pub fn create_deployment_plan(config: &LoadedConfig) -> Result<DeploymentPlan> {
         );
     }
     let checks = run_check_suite(config)?;
-    let project_root = Path::new(&config.project_root);
     let artifact_path = resolve_from(project_root, &config.value.contract.artifact);
     let artifact = load_artifact(&artifact_path)?;
     let init_code = make_init_code(

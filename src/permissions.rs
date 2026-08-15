@@ -1,4 +1,7 @@
-use std::{collections::BTreeSet, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 use alloy_primitives::Address;
 use anyhow::{Context, Result, bail};
@@ -85,10 +88,9 @@ pub fn probe_hook_permissions(
         "call".to_owned(),
         address.to_owned(),
         "getHookPermissions()((bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,bool))".to_owned(),
-        "--rpc-url".to_owned(),
-        rpc_url.to_owned(),
     ];
-    let result = require_success(&command, cwd, None, false)?;
+    let environment = BTreeMap::from([("ETH_RPC_URL".to_owned(), rpc_url.to_owned())]);
+    let result = require_success(&command, cwd, Some(&environment), false)?;
     let regex = Regex::new(r"\b(true|false)\b").expect("static regex");
     let values: Vec<bool> = regex
         .captures_iter(&result.stdout)

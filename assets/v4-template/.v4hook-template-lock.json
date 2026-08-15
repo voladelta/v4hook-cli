@@ -1,7 +1,7 @@
 {
   "schemaVersion": "v4hook.template-lock.v2",
-  "templateVersion": "1.0.1",
-  "snapshot": "v4hook-template-1.0.1",
+  "templateVersion": "1.0.2",
+  "snapshot": "v4hook-template-1.0.2",
   "repository": "Uniswap/v4-template",
   "commit": "1fbf95547791f0821a170b88c750cb2e04e6818b",
   "dependencies": {
@@ -15,16 +15,20 @@
     "v4-periphery": "eeb3eff28dd5f5f17aa94180fa3610ff59b0e1c8"
   },
   "files": {
+    ".env.example": {
+      "sha256": "sha256:1c1eddcc0e9c3aff03fc170b49bcb2fef743967b069c5d2c84e8659746dc896a",
+      "ownership": "managed"
+    },
     ".github/workflows/test.yml": {
       "sha256": "sha256:1cf2167b838f4e8204e1996eea6c300a453e0349fb364e3d6771cea964704366",
       "ownership": "managed"
     },
     ".gitignore": {
-      "sha256": "sha256:ec989d45826624f506da316174d05e383b27ad59b1cd9946691b8763d123281f",
+      "sha256": "sha256:ce0a924bfafde92c8e36cc42eb0cccd608cac81740221f4e32f5730bddacf47f",
       "ownership": "managed"
     },
     "AGENTS.md": {
-      "sha256": "sha256:354cdb5a9497c7d15a0ed61e62222cbcf410f560c7a59a04d1b788a66017c767",
+      "sha256": "sha256:3ca681d8b9437801b29081a47019cbcb515b6d9dd97e08512906ab198b38f327",
       "ownership": "managed"
     },
     "LICENSE": {
@@ -32,7 +36,7 @@
       "ownership": "managed"
     },
     "README.md": {
-      "sha256": "sha256:36838074a9da0e329c3ea4e49e7ec2ded85a2e459211e694ec8fd0749b09f422",
+      "sha256": "sha256:b3da5c1a65610135c797629c97c5102bfcb0873e68a49bd9c2e3987295438a23",
       "ownership": "seed"
     },
     "foundry.toml": {

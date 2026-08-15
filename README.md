@@ -139,7 +139,15 @@ You cannot skip the Anvil fork. `deploy` runs a fresh simulation even when you r
 
 ## Check and simulate a hook
 
-Set the RPC variable named by `network.rpcUrlEnv` in your configuration. Then run:
+Set the RPC variable named by `network.rpcUrlEnv` in your configuration. The CLI reads the process environment first and then `<projectRoot>/.env`, so each developer can use a public or authenticated provider without changing committed configuration:
+
+```sh
+cp .env.example .env
+```
+
+Put the endpoint in `.env`. Keep the variable name from `network.rpcUrlEnv`; the example uses `BASE_SEPOLIA_RPC_URL`. Do not commit `.env` or share one provider key across generated projects.
+
+Then run:
 
 ```sh
 v4hook doctor --config v4hook.config.json
@@ -188,13 +196,16 @@ Use a separate testnet account. Import it into the Foundry keystore:
 cast wallet import deployer --interactive
 ```
 
-Get test ETH from a [Base Sepolia faucet](https://docs.base.org/base-chain/network-information/network-faucets). Then set your RPC and explorer credentials:
+Get test ETH from a [Base Sepolia faucet](https://docs.base.org/base-chain/network-information/network-faucets). Copy the example environment file and fill in the RPC, explorer key and public deployer address:
 
 ```sh
-export BASE_SEPOLIA_RPC_URL='https://your-provider.example'
-export ETHERSCAN_API_KEY='your-api-key'
-export DEPLOYER='0xYourAddress'
+cp .env.example .env
+set -a
+. ./.env
+set +a
 ```
+
+The RPC and explorer values are credentials. The deployer address is public. Never add a private key, mnemonic or keystore password to `.env`; import the key interactively into Foundry instead. For production mainnet deployments, prefer a hardware wallet after the CLI supports the required signer flow.
 
 Create and simulate a fresh plan. Then deploy the hook:
 
@@ -202,7 +213,7 @@ Create and simulate a fresh plan. Then deploy the hook:
 v4hook deploy \
   --plan .v4hook/deployment-plan.json \
   --account deployer \
-  --sender "$DEPLOYER" \
+  --sender "$DEPLOYER_ADDRESS" \
   --confirm 'DEPLOY:84532:0xpredictedhook' \
   --verify
 ```
@@ -261,7 +272,7 @@ v4hook pool launch \
   --deployment-plan .v4hook/deployment-plan.json \
   --pool-plan .v4hook/pool-plan.json \
   --account deployer \
-  --sender "$DEPLOYER" \
+  --sender "$DEPLOYER_ADDRESS" \
   --confirm 'POOL:84532:0xhook:sha256:pool-plan-digest'
 ```
 
@@ -273,7 +284,9 @@ Run small live swaps after launch. Cover both swap directions and both amount mo
 
 Test the complete process on a supported testnet first.
 
-Ethereum mainnet requires both the exact confirmation value and `--mainnet`. The CLI does not accept private keys on the command line.
+Ethereum mainnet requires both the exact confirmation value and `--mainnet`. The CLI does not accept private keys on the command line or read them from `.env`.
+
+RPC endpoints are also kept out of child-process arguments. The CLI configures Anvil forks through the local Anvil JSON-RPC interface and passes live endpoints to Foundry through environment variables.
 
 Review the hook independently before you deploy valuable assets. A passing CLI run does not prove that the hook is safe.
 
