@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, path::Path};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
 use crate::{
@@ -67,8 +67,8 @@ fn pool_variables(
     pool: &PoolPlan,
     sender: &str,
     pool_plan_path: &Path,
-) -> BTreeMap<String, String> {
-    BTreeMap::from([
+) -> Result<BTreeMap<String, String>> {
+    Ok(BTreeMap::from([
         ("anvilSender".to_owned(), sender.to_owned()),
         ("hookAddress".to_owned(), pool.hook_address.clone()),
         (
@@ -83,7 +83,9 @@ fn pool_variables(
                 .network
                 .contracts
                 .get("poolManager")
-                .map_or_else(String::new, |value| value.address.clone()),
+                .context("deployment plan is missing poolManager")?
+                .address
+                .clone(),
         ),
         (
             "positionManager".to_owned(),
@@ -91,7 +93,9 @@ fn pool_variables(
                 .network
                 .contracts
                 .get("positionManager")
-                .map_or_else(String::new, |value| value.address.clone()),
+                .context("deployment plan is missing positionManager")?
+                .address
+                .clone(),
         ),
         (
             "permit2".to_owned(),
@@ -99,9 +103,11 @@ fn pool_variables(
                 .network
                 .contracts
                 .get("permit2")
-                .map_or_else(String::new, |value| value.address.clone()),
+                .context("deployment plan is missing permit2")?
+                .address
+                .clone(),
         ),
-    ])
+    ]))
 }
 
 fn pool_env(pool: &PoolPlan, sender: &str) -> BTreeMap<String, String> {
@@ -175,7 +181,7 @@ pub fn simulate_pool(input: &SimulatePoolInput<'_>) -> Result<PoolSimulationEvid
         verify_network_at_rpc(&deployment, &anvil.rpc_url, false)?;
         verify_hook_at_rpc(&deployment, &anvil.rpc_url)?;
         let pool_plan_path = absolute_path(input.pool_plan)?;
-        let mut variables = pool_variables(&deployment, &pool, &anvil.sender, &pool_plan_path);
+        let mut variables = pool_variables(&deployment, &pool, &anvil.sender, &pool_plan_path)?;
         variables.insert("anvilRpc".to_owned(), anvil.rpc_url.clone());
         let mut environment = pool_env(&pool, &anvil.sender);
         environment.insert("V4HOOK_ANVIL_RPC_URL".to_owned(), anvil.rpc_url.clone());
@@ -301,7 +307,7 @@ pub fn launch_pool(input: &LaunchPoolInput<'_>) -> Result<Value> {
     let launch_result =
         require_success(&launch, &deployment.project_root, Some(&environment), false)?;
     let pool_plan_path = absolute_path(input.pool_plan)?;
-    let variables = pool_variables(&deployment, &pool, &sender, &pool_plan_path);
+    let variables = pool_variables(&deployment, &pool, &sender, &pool_plan_path)?;
     let live_verify = pool
         .pool
         .live_verify

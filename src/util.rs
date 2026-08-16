@@ -135,13 +135,13 @@ pub fn write_json(path: impl AsRef<Path>, value: &impl Serialize) -> Result<()> 
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
     }
-    let bytes = serde_json::to_vec_pretty(value).context("serialize JSON")?;
+    let mut bytes = serde_json::to_vec_pretty(value).context("serialize JSON")?;
+    bytes.push(b'\n');
     let temporary = path.with_extension(format!(
         "{}.tmp",
         path.extension().and_then(|v| v.to_str()).unwrap_or("json")
     ));
-    fs::write(&temporary, [&bytes[..], b"\n"].concat())
-        .with_context(|| format!("write {}", temporary.display()))?;
+    fs::write(&temporary, bytes).with_context(|| format!("write {}", temporary.display()))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

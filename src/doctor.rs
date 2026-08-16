@@ -10,9 +10,6 @@ use crate::{
 };
 
 fn version(command_name: &str, cwd: &Path) -> Option<String> {
-    if !command_exists(command_name) {
-        return None;
-    }
     require_success(&command(&[command_name, "--version"]), cwd, None, false)
         .ok()
         .and_then(|result| {
@@ -61,7 +58,7 @@ pub fn doctor(config: Option<&LoadedConfig>) -> Value {
         missing.push(format!("RPC setting {name} in the environment or .env"));
     }
     json!({
-        "ok": missing.is_empty() && rpc_configured.unwrap_or(true),
+        "ok": missing.is_empty(),
         "tools": tools,
         "missing": missing,
         "projectRoot": config.map(|value| value.project_root.clone()),

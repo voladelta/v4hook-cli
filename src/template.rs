@@ -149,8 +149,7 @@ fn extract_zip(bytes: &[u8], destination: &Path) -> Result<()> {
             .context("read GitHub archive entry")?;
         let enclosed = file
             .enclosed_name()
-            .context("GitHub archive contains an unsafe path")?
-            .clone();
+            .context("GitHub archive contains an unsafe path")?;
         let mut components = enclosed.components();
         let Some(Component::Normal(_root)) = components.next() else {
             bail!("GitHub archive entry has no root directory")
@@ -499,7 +498,8 @@ pub fn refresh_template(input: &TemplateRefreshInput<'_>) -> Result<TemplateRefr
             &mut dependencies,
         )?;
         let missing = allowed_dependencies
-            .difference(&dependencies.keys().cloned().collect())
+            .iter()
+            .filter(|name| !dependencies.contains_key(*name))
             .cloned()
             .collect::<Vec<_>>();
         if !missing.is_empty() {

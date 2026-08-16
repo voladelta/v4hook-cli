@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, path::Path};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 
 use crate::{
     anvil::start_anvil,
@@ -84,7 +84,9 @@ pub fn simulate_deployment(
                 plan.network
                     .contracts
                     .get("poolManager")
-                    .map_or_else(String::new, |value| value.address.clone()),
+                    .context("deployment plan is missing poolManager")?
+                    .address
+                    .clone(),
             ),
         ]);
         let mut commands = Vec::new();

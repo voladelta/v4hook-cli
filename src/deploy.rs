@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, path::Path};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
 use crate::{
@@ -140,7 +140,9 @@ pub fn deploy_hook(input: &DeployInput<'_>) -> Result<Value> {
             plan.network
                 .contracts
                 .get("poolManager")
-                .map_or_else(String::new, |value| value.address.clone()),
+                .context("deployment plan is missing poolManager")?
+                .address
+                .clone(),
         ),
         ("FOUNDRY_ETH_RPC_URL".to_owned(), rpc_url.clone()),
         ("ETH_RPC_URL".to_owned(), rpc_url.clone()),
