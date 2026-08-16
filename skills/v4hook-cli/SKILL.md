@@ -52,8 +52,11 @@ Read [dynamic-fees.md](references/dynamic-fees.md) when a hook overrides or upda
 - Load and apply `v4-security-foundations` for every Solidity hook implementation or review. Use it
   before designing fund movement, return deltas, router trust, or external calls, and again for the
   final security review. If it is unavailable, say so and do not claim that its review occurred.
-- Follow project `AGENTS.md` routing to current Ethereum and Foundry guidance. Load only the topics
-  needed for the task; load wallet and contract-address guidance before live deployment.
+- Follow project `AGENTS.md` routing to current Ethereum guidance. For Foundry tasks, start at
+  `https://getfoundry.sh/llms.txt`, select only the relevant official page, retrieve its `.md`
+  route, and confirm version-sensitive flags against the installed tool's `--help` output. Do not
+  load `llms-full.txt` unless a bulk corpus is explicitly needed. Load wallet and contract-address
+  guidance before live deployment.
 - Use official Uniswap guidance for v4 behavior, permissions, PoolManager integration, and current
   deployment addresses.
 - Use the relevant official Chainlink skill only when the design introduces that product. Use
