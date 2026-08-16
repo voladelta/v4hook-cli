@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "v4hook.config.v1",
+  "projectRoot": ".",
+  "contract": {
+    "artifact": "out/MyHook.sol/MyHook.json",
+    "constructorArgs": "0x",
+    "permissions": ["beforeSwap", "afterSwap"]
+  },
+  "network": {
+    "chainId": 84532,
+    "rpcUrlEnv": "BASE_SEPOLIA_RPC_URL",
+    "poolManager": "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408",
+    "positionManager": "0x4b2c77d209d3405f41a037ec6c77f7f5b8e2ca80",
+    "universalRouter": "0x492e6456d9528771018deb9e87ef7750ef184104",
+    "quoter": "0x4a6513c898fe1b2d0e78d3b0e0a4a151589b1cba",
+    "stateView": "0x571291b572ed32ce6751a2cb2486ebee8defb9b4",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "create2Deployer": "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+  },
+  "checks": {
+    "unit": ["forge", "test", "--match-path", "test/unit/**"],
+    "fuzz": ["forge", "test", "--match-path", "test/fuzz/**", "--fuzz-runs", "1000"],
+    "invariant": ["forge", "test", "--match-path", "test/invariant/**"],
+    "staticAnalysis": ["slither", "."]
+  },
+  "simulation": {
+    "maxForkBlockDrift": 512,
+    "anvilArgs": ["--code-size-limit", "40000"],
+    "steps": [
+      {
+        "kind": "deploy",
+        "command": ["forge", "script", "script/DeployHook.s.sol:DeployHook", "--rpc-url", "{anvilRpc}", "--broadcast", "--unlocked", "--sender", "{anvilSender}"]
+      },
+      {
+        "kind": "pool",
+        "command": ["forge", "script", "script/SimulatePool.s.sol:SimulatePool", "--rpc-url", "{anvilRpc}", "--broadcast", "--unlocked", "--sender", "{anvilSender}"]
+      },
+      {
+        "kind": "quadrants",
+        "command": ["forge", "test", "--match-path", "test/fork/SwapQuadrants.t.sol", "--fork-url", "{anvilRpc}"]
+      },
+      {
+        "kind": "postconditions",
+        "command": ["forge", "test", "--match-path", "test/fork/Postconditions.t.sol", "--fork-url", "{anvilRpc}"]
+      }
+    ]
+  },
+  "deployment": {
+    "script": "script/DeployHook.s.sol:DeployHook"
+  },
+  "pool": {
+    "currency0": "0x0000000000000000000000000000000000000001",
+    "currency1": "0x0000000000000000000000000000000000000002",
+    "fee": 3000,
+    "tickSpacing": 60,
+    "sqrtPriceX96": "79228162514264337593543950336",
+    "tickLower": -600,
+    "tickUpper": 600,
+    "liquidity": "1000000",
+    "amount0Max": "1000000000000000000",
+    "amount1Max": "1000000000000000000",
+    "recipient": "0x0000000000000000000000000000000000000003",
+    "hookData": "0x",
+    "launchScript": "script/LaunchPool.s.sol:LaunchPool",
+    "simulationSteps": [
+      {
+        "kind": "pool",
+        "command": ["forge", "script", "script/LaunchPool.s.sol:LaunchPool", "--rpc-url", "{anvilRpc}", "--broadcast", "--unlocked", "--sender", "{anvilSender}"]
+      },
+      {
+        "kind": "quadrants",
+        "command": ["forge", "test", "--match-path", "test/fork/SwapQuadrants.t.sol", "--fork-url", "{anvilRpc}"]
+      },
+      {
+        "kind": "postconditions",
+        "command": ["forge", "test", "--match-path", "test/fork/Postconditions.t.sol", "--fork-url", "{anvilRpc}"]
+      }
+    ],
+    "liveVerify": ["forge", "script", "script/VerifyPool.s.sol:VerifyPool"]
+  }
+}

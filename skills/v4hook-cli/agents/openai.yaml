@@ -1,0 +1,4 @@
+interface:
+  display_name: "v4hook CLI"
+  short_description: "Build and launch verified Uniswap v4 hooks"
+  default_prompt: "Use $v4hook-cli to turn my hook idea into a tested v4hook project."

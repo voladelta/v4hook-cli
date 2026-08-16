@@ -1,7 +1,7 @@
 {
   "schemaVersion": "v4hook.template-lock.v2",
-  "templateVersion": "1.0.2",
-  "snapshot": "v4hook-template-1.0.2",
+  "templateVersion": "1.1.0",
+  "snapshot": "v4hook-template-1.1.0",
   "repository": "Uniswap/v4-template",
   "commit": "1fbf95547791f0821a170b88c750cb2e04e6818b",
   "dependencies": {
@@ -28,7 +28,7 @@
       "ownership": "managed"
     },
     "AGENTS.md": {
-      "sha256": "sha256:3ca681d8b9437801b29081a47019cbcb515b6d9dd97e08512906ab198b38f327",
+      "sha256": "sha256:67035519874e99ac173c13105bfb4fea8507411bd20b6d41e6047005e5387881",
       "ownership": "managed"
     },
     "LICENSE": {
@@ -36,7 +36,7 @@
       "ownership": "managed"
     },
     "README.md": {
-      "sha256": "sha256:b3da5c1a65610135c797629c97c5102bfcb0873e68a49bd9c2e3987295438a23",
+      "sha256": "sha256:2af2b3ed6b8a0842407838d32263ee3332e450271c48cc9bb715663dff7ac484",
       "ownership": "seed"
     },
     "foundry.toml": {
@@ -98,6 +98,10 @@
     "test/utils/libraries/EasyPosm.t.sol": {
       "sha256": "sha256:dc290c9a371c6b12be14639e9eb5cea52bf6ea7ce51b5efec649bcc976d3a164",
       "ownership": "seed"
+    },
+    "v4hook.config.example.json": {
+      "sha256": "sha256:61c5ced9413f6ede7c468d4a976b3f61248f20bcfa0e79e5a2473030c127295c",
+      "ownership": "managed"
     },
     "vendor/forge-std/LICENSE-APACHE": {
       "sha256": "sha256:50b6bf8bdb63265ce14953b480b7aaa0271e78f56843b99c184abd3ae5048cd7",

@@ -46,10 +46,13 @@ The generated project contains:
 - `AGENTS.md` with current Uniswap, Foundry and Ethereum guidance for coding agents
 - `.v4hook.toml` with the CLI and template versions
 - `.v4hook-template-lock.json` with upstream revisions and file hashes
+- `v4hook.config.example.json` with the deployment, checks and simulation schema
 - one flattened `vendor/` directory without Git history or submodules
 - the official Foundry starter contracts, scripts and tests
 
 Commit both metadata files. The CLI uses them to update the scaffold safely.
+
+The first-party Codex workflow is maintained in `skills/v4hook-cli`. It lets an agent turn a hook idea into a scaffolded, tested and simulated project while preserving the same launch gates as the CLI.
 
 ## Update a hook project
 
@@ -95,7 +98,7 @@ This command is for maintainers of this repository:
 
 ```sh
 v4hook template refresh \
-  --version 1.1.0 \
+  --version 1.2.0 \
   --source Uniswap/v4-template \
   --reference main
 ```

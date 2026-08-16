@@ -21,7 +21,7 @@ use crate::{
     util::status,
 };
 
-const PRESERVED_PATHS: [&str; 9] = [
+const PRESERVED_PATHS: [&str; 10] = [
     ".env.example",
     ".github/workflows/test.yml",
     ".gitignore",
@@ -31,6 +31,7 @@ const PRESERVED_PATHS: [&str; 9] = [
     "remappings.txt",
     "script/00_DeployHook.s.sol",
     "script/base/BaseScript.sol",
+    "v4hook.config.example.json",
 ];
 
 pub struct TemplateRefreshInput<'a> {

@@ -81,6 +81,10 @@ Set the RPC variable named by `network.rpcUrlEnv` in `.env`. Authenticated Alche
 
 Replace the example contract and tests with your implementation. Update your deployment configuration with:
 
+```sh
+cp v4hook.config.example.json v4hook.config.json
+```
+
 - the compiled artifact path
 - ABI-encoded constructor arguments
 - every hook permission

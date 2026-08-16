@@ -59,6 +59,15 @@ fn init_keeps_captured_stdout_machine_readable() {
     let metadata = fs::read_to_string(destination.0.join(".v4hook.toml"))
         .expect("scaffold includes template metadata");
     assert!(metadata.contains("created-with-cli = \"0.1.1\""));
-    assert!(metadata.contains("version = \"1.0.2\""));
+    assert!(metadata.contains("version = \"1.1.0\""));
     assert!(destination.0.join(".env.example").is_file());
+    assert!(destination.0.join("v4hook.config.example.json").is_file());
+}
+
+#[test]
+fn scaffold_config_example_matches_repository_example() {
+    assert_eq!(
+        include_str!("../v4hook.config.example.json"),
+        include_str!("../assets/v4-template/v4hook.config.example.json")
+    );
 }

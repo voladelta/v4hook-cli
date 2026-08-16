@@ -7,18 +7,19 @@ This is a Foundry project for a Uniswap v4 hook managed by the `v4hook` CLI.
 Before changing Solidity, tests, scripts, hook permissions or deployment configuration:
 
 1. Read this repository's `README.md`, `foundry.toml` and v4hook configuration before deciding how the project works.
-2. Read [ETHSkills](https://ethskills.com/SKILL.md), then load only the topics relevant to the task. Solidity and hook work normally requires its security and testing skills. Before deployment, also load its wallet and contract-address guidance.
-3. Follow [Foundry's agent documentation](https://getfoundry.sh/introduction/agents). Read the narrow page-level Markdown relevant to the task and confirm version-sensitive commands against the installed tool's `--help` output.
-4. Use the official [Uniswap AI skills](https://github.com/Uniswap/uniswap-ai) for v4 hook work. If the required skill is unavailable and project-local skill installation is supported, install only what the task needs:
+2. Use the first-party `v4hook-cli` skill when it is available. It owns the scaffold, configuration, checks, plan, simulation and live-action boundaries. Treat other generators as optional sources of implementation drafts.
+3. Read [ETHSkills](https://ethskills.com/SKILL.md), then load only the topics relevant to the task. Solidity and hook work normally requires its security and testing skills. Before deployment, also load its wallet and contract-address guidance.
+4. Follow [Foundry's agent documentation](https://getfoundry.sh/introduction/agents). Read the narrow page-level Markdown relevant to the task and confirm version-sensitive commands against the installed tool's `--help` output.
+5. Use the official [Uniswap AI skills](https://github.com/Uniswap/uniswap-ai) for v4 hook work. If the required skill is unavailable and project-local skill installation is supported, install only what the task needs:
 
    ```sh
    npx skills add Uniswap/uniswap-ai --skill v4-security-foundations
    npx skills add Uniswap/uniswap-ai --skill v4-hook-generator
    ```
 
-   The security skill applies to every hook implementation or review. The generator is only needed when creating or substantially reshaping a hook.
+   The security skill applies to every hook implementation or review. Use the generator only as a fallback design reference when the first-party skill is unavailable, and adapt its output to this project's pinned scaffold.
 
-5. If the task introduces Chainlink Data Feeds, VRF, CCIP or another Chainlink product, find the matching official skill in [Chainlink Agent Skills](https://github.com/smartcontractkit/chainlink-agent-skills) and install only that skill. For example:
+6. If the task introduces Chainlink Data Feeds, VRF, CCIP or another Chainlink product, find the matching official skill in [Chainlink Agent Skills](https://github.com/smartcontractkit/chainlink-agent-skills) and install only that skill. For example:
 
    ```sh
    npx skills add smartcontractkit/chainlink-agent-skills --skill chainlink-vrf-skill
