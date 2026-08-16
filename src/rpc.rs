@@ -10,13 +10,17 @@ use serde_json::{Value, json};
 
 use crate::util::normalize_hex;
 
+fn redact_rpc_url(message: &str, url: &str) -> String {
+    message.replace(url, "[REDACTED RPC URL]")
+}
+
 fn result_from_payload(payload: &Value, url: &str, method: &str) -> Result<Value> {
     if let Some(error) = payload.get("error").filter(|error| !error.is_null()) {
         let message = error
             .get("message")
             .and_then(Value::as_str)
             .unwrap_or("unknown RPC error");
-        let message = message.replace(url, "[REDACTED RPC URL]");
+        let message = redact_rpc_url(message, url);
         bail!("RPC {method} failed: {message}");
     }
     payload
@@ -35,13 +39,15 @@ fn rpc_value(url: &str, method: &str, params: &[Value]) -> Result<Value> {
         .post(url)
         .json(&json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}))
         .send()
-        .map_err(|_| anyhow::anyhow!("RPC {method} request failed"))?;
+        .map_err(reqwest::Error::without_url)
+        .with_context(|| format!("RPC {method} request failed"))?;
     if !response.status().is_success() {
         bail!("RPC {method} returned HTTP {}", response.status());
     }
     let payload: Value = response
         .json()
-        .map_err(|_| anyhow::anyhow!("decode RPC {method} response"))?;
+        .map_err(reqwest::Error::without_url)
+        .with_context(|| format!("decode RPC {method} response"))?;
     result_from_payload(&payload, url, method)
 }
 
@@ -60,7 +66,12 @@ pub fn reset_fork(local_url: &str, target_url: &str, block_number: u64) -> Resul
                 "blockNumber": block_number,
             }
         })],
-    )?;
+    )
+    .map_err(|error| {
+        // Anvil may echo the credential-bearing fork URL from the request body.
+        // Flatten this one boundary so the error chain cannot reveal it.
+        anyhow::anyhow!(redact_rpc_url(&format!("{error:#}"), target_url))
+    })?;
     Ok(())
 }
 
@@ -109,10 +120,12 @@ pub fn wait_for_rpc(url: &str, timeout: Duration) -> Result<()> {
         thread::sleep(Duration::from_millis(100));
     }
     if let Some(error) = last_error {
-        bail!(
-            "Anvil RPC did not become ready within {}ms: {error}",
-            timeout.as_millis()
-        );
+        return Err(error).with_context(|| {
+            format!(
+                "Anvil RPC did not become ready within {}ms",
+                timeout.as_millis()
+            )
+        });
     }
     bail!(
         "Anvil RPC did not become ready within {}ms",
@@ -129,6 +142,11 @@ mod tests {
         let credential_url = "http://127.0.0.1:1/private-provider-token";
         let error = chain_id(credential_url).unwrap_err();
         assert!(!format!("{error:#}").contains(credential_url));
+        assert!(
+            error
+                .chain()
+                .any(|cause| cause.downcast_ref::<reqwest::Error>().is_some())
+        );
     }
 
     #[test]

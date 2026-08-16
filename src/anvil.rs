@@ -64,7 +64,10 @@ pub fn start_anvil(
 ) -> Result<AnvilHandle> {
     reject_reserved_args(extra_args)?;
     let listener = TcpListener::bind("127.0.0.1:0").context("allocate local Anvil port")?;
-    let port = listener.local_addr()?.port();
+    let port = listener
+        .local_addr()
+        .context("read allocated local Anvil port")?
+        .port();
     drop(listener);
     let args = [
         "--host".to_owned(),
@@ -112,10 +115,12 @@ pub fn start_anvil(
             .map(|value| value.trim().to_owned())
             .unwrap_or_default();
         let output = output.replace(target_rpc_url, "[REDACTED RPC URL]");
-        if output.is_empty() {
-            bail!("failed to start Anvil: {error}");
-        }
-        bail!("failed to start Anvil: {error}: {output}");
+        let context = if output.is_empty() {
+            "failed to start Anvil".to_owned()
+        } else {
+            format!("failed to start Anvil: {output}")
+        };
+        return Err(error).context(context);
     }
     let configure_fork = || -> Result<()> {
         reset_fork(&rpc_url, target_rpc_url, fork_block_number)?;
@@ -135,10 +140,7 @@ pub fn start_anvil(
     if let Err(error) = configure_fork() {
         let _ = child.kill();
         let _ = child.wait();
-        let error = error
-            .to_string()
-            .replace(target_rpc_url, "[REDACTED RPC URL]");
-        bail!("failed to configure Anvil fork: {error}");
+        return Err(error).context("failed to configure Anvil fork");
     }
     Ok(AnvilHandle {
         rpc_url,

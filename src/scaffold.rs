@@ -352,20 +352,41 @@ fn backup_file(backups: &mut BTreeMap<PathBuf, Option<Vec<u8>>>, path: &Path) ->
     Ok(())
 }
 
-fn restore_files(backups: &BTreeMap<PathBuf, Option<Vec<u8>>>) {
+fn restore_files(backups: &BTreeMap<PathBuf, Option<Vec<u8>>>) -> Result<()> {
+    let mut failures = Vec::new();
     for (path, bytes) in backups {
-        match bytes {
-            Some(bytes) => {
+        let result = match bytes {
+            Some(bytes) => (|| {
                 if let Some(parent) = path.parent() {
-                    let _ = fs::create_dir_all(parent);
+                    fs::create_dir_all(parent)
+                        .with_context(|| format!("restore directory {}", parent.display()))?;
                 }
-                let _ = fs::write(path, bytes);
-            }
-            None => {
-                let _ = fs::remove_file(path);
-            }
+                fs::write(path, bytes)
+                    .with_context(|| format!("restore scaffold file {}", path.display()))
+            })(),
+            None => match fs::remove_file(path) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(error)
+                    .with_context(|| format!("remove added scaffold file {}", path.display())),
+            },
+        };
+        if let Err(error) = result {
+            failures.push(error);
         }
     }
+    let Some(primary) = failures.pop() else {
+        return Ok(());
+    };
+    if failures.is_empty() {
+        return Err(primary);
+    }
+    let additional = failures
+        .iter()
+        .map(|error| format!("{error:#}"))
+        .collect::<Vec<_>>()
+        .join("; ");
+    Err(primary).context(format!("additional restoration failures: {additional}"))
 }
 
 fn validate_updated_project(root: &Path) -> Result<()> {
@@ -549,7 +570,11 @@ pub fn update_scaffold(input: &ScaffoldUpdateInput<'_>) -> Result<ScaffoldUpdate
         Ok(())
     })();
     if let Err(error) = apply_result {
-        restore_files(&backups);
+        if let Err(restore_error) = restore_files(&backups) {
+            return Err(restore_error).context(format!(
+                "scaffold update failed ({error:#}); project file restoration also failed"
+            ));
+        }
         return Err(error).context("scaffold update failed; restored the project files");
     }
     report.applied = true;
@@ -570,6 +595,25 @@ mod tests {
         );
         assert_eq!(ownership("AGENTS.md"), FileOwnership::Managed);
         assert_eq!(ownership("foundry.toml"), FileOwnership::Managed);
+    }
+
+    #[test]
+    fn reports_file_restoration_failures() {
+        let temporary = TemporaryDirectory::create("restore-test").unwrap();
+        let blocking_file = temporary.path().join("not-a-directory");
+        fs::write(&blocking_file, b"blocking file").unwrap();
+        let restore_path = blocking_file.join("file.txt");
+        let later_path = temporary.path().join("restored-after-failure.txt");
+        let backups = BTreeMap::from([
+            (restore_path, Some(b"original".to_vec())),
+            (later_path.clone(), Some(b"also original".to_vec())),
+        ]);
+
+        let error = restore_files(&backups).unwrap_err();
+
+        assert!(error.to_string().contains("restore directory"));
+        assert!(format!("{error:#}").contains(&blocking_file.display().to_string()));
+        assert_eq!(fs::read(later_path).unwrap(), b"also original");
     }
 
     #[test]

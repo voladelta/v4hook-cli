@@ -43,7 +43,14 @@ pub fn initialize_project(directory: &Path) -> Result<serde_json::Value> {
     let lock = match result {
         Ok(lock) => lock,
         Err(error) => {
-            let _ = fs::remove_dir_all(&destination);
+            if let Err(cleanup_error) = fs::remove_dir_all(&destination) {
+                return Err(cleanup_error).with_context(|| {
+                    format!(
+                        "initialization failed ({error:#}); could not remove partial destination {}",
+                        destination.display()
+                    )
+                });
+            }
             return Err(error).with_context(|| {
                 format!("initialization failed; removed {}", destination.display())
             });

@@ -194,17 +194,30 @@ pub fn load_config(config_file: impl AsRef<Path>) -> Result<LoadedConfig> {
 }
 
 pub fn rpc_url_from_env(name: &str, project_root: &Path) -> Result<String> {
-    let from_environment = env::var(name).ok().filter(|value| !value.trim().is_empty());
+    let from_environment = match env::var(name) {
+        Ok(value) if !value.trim().is_empty() => Some(value),
+        Ok(_) | Err(env::VarError::NotPresent) => None,
+        Err(env::VarError::NotUnicode(_)) => {
+            bail!("RPC setting {name} contains non-Unicode data")
+        }
+    };
     let value = if let Some(value) = from_environment {
         value
     } else {
         let path = project_root.join(".env");
         let mut configured = None;
         if path.is_file() {
-            let entries = dotenvy::from_path_iter(&path)
-                .map_err(|_| anyhow::anyhow!("could not read {}", path.display()))?;
+            let entries = dotenvy::from_path_iter(&path).map_err(|error| match error {
+                dotenvy::Error::Io(error) => {
+                    anyhow::Error::new(error).context(format!("could not read {}", path.display()))
+                }
+                // Other dotenv errors can contain the credential-bearing source line.
+                _ => anyhow::anyhow!("could not read {}", path.display()),
+            })?;
             for item in entries {
                 let (key, value) = item
+                    // A dotenv parse error includes the entire source line, so it
+                    // cannot safely remain in the user-visible error chain.
                     .map_err(|_| anyhow::anyhow!("invalid dotenv syntax in {}", path.display()))?;
                 if key == name && !value.trim().is_empty() {
                     configured = Some(value);
@@ -220,7 +233,7 @@ pub fn rpc_url_from_env(name: &str, project_root: &Path) -> Result<String> {
         })?
     };
     let parsed = reqwest::Url::parse(&value)
-        .map_err(|_| anyhow::anyhow!("RPC setting {name} must be a valid HTTP(S) URL"))?;
+        .with_context(|| format!("RPC setting {name} must be a valid HTTP(S) URL"))?;
     if !matches!(parsed.scheme(), "http" | "https") {
         bail!("RPC setting {name} must be a valid HTTP(S) URL");
     }
@@ -265,10 +278,19 @@ mod tests {
         let root = temporary_directory();
         let secret = "file:///secret-provider-token";
         fs::write(root.join(".env"), format!("V4HOOK_TEST_RPC_URL={secret}\n")).unwrap();
-        let error = rpc_url_from_env("V4HOOK_TEST_RPC_URL", &root)
-            .unwrap_err()
-            .to_string();
-        assert!(!error.contains(secret));
+        let error = rpc_url_from_env("V4HOOK_TEST_RPC_URL", &root).unwrap_err();
+        assert!(!format!("{error:#}").contains(secret));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn invalid_rpc_urls_preserve_the_parse_cause() {
+        let root = temporary_directory();
+        fs::write(root.join(".env"), "V4HOOK_TEST_RPC_URL=https://[invalid\n").unwrap();
+
+        let error = rpc_url_from_env("V4HOOK_TEST_RPC_URL", &root).unwrap_err();
+
+        assert!(error.chain().count() > 1);
         fs::remove_dir_all(root).unwrap();
     }
 

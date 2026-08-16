@@ -429,12 +429,28 @@ fn replace_directory(next: &Path, destination: &Path) -> Result<()> {
     let backup = parent.join(format!(".v4-template-backup-{unique}"));
     copy_tree(next, &prepared)?;
     fs::rename(destination, &backup).context("move current scaffold to a backup")?;
-    if let Err(error) = fs::rename(&prepared, destination) {
-        let _ = fs::rename(&backup, destination);
-        let _ = fs::remove_dir_all(&prepared);
-        return Err(error).context("install refreshed scaffold");
+    if let Err(install_error) = fs::rename(&prepared, destination) {
+        if let Err(restore_error) = fs::rename(&backup, destination) {
+            return Err(restore_error).context(format!(
+                "install refreshed scaffold failed ({install_error}); could not restore the previous scaffold from {}",
+                backup.display()
+            ));
+        }
+        if let Err(cleanup_error) = fs::remove_dir_all(&prepared) {
+            return Err(cleanup_error).context(format!(
+                "install refreshed scaffold failed ({install_error}); restored the previous scaffold but could not remove {}",
+                prepared.display()
+            ));
+        }
+        return Err(install_error)
+            .context("install refreshed scaffold; restored the previous scaffold");
     }
-    fs::remove_dir_all(&backup).context("remove scaffold backup")
+    fs::remove_dir_all(&backup).with_context(|| {
+        format!(
+            "installed refreshed scaffold but could not remove backup {}",
+            backup.display()
+        )
+    })
 }
 
 #[allow(clippy::too_many_lines)]
