@@ -1,7 +1,7 @@
 {
   "schemaVersion": "v4hook.template-lock.v2",
-  "templateVersion": "1.1.0",
-  "snapshot": "v4hook-template-1.1.0",
+  "templateVersion": "1.1.1",
+  "snapshot": "v4hook-template-1.1.1",
   "repository": "Uniswap/v4-template",
   "commit": "1fbf95547791f0821a170b88c750cb2e04e6818b",
   "dependencies": {
@@ -64,7 +64,7 @@
       "ownership": "managed"
     },
     "script/base/BaseScript.sol": {
-      "sha256": "sha256:3f13e21a48d1205df28209702b9775b5eefdde1af40c16e2bdb5f088f65ddc71",
+      "sha256": "sha256:458f822881c413770a9d6a11a3ed9a6df621b525d82a21e6f38790282aa8a898",
       "ownership": "managed"
     },
     "script/base/LiquidityHelpers.sol": {

@@ -24,6 +24,19 @@ Use this reference when editing a v4hook-managed Foundry project.
 Return-delta permissions require their parent callback. Let configuration validation and
 `v4hook plan` derive address flags; never hardcode a salt or predicted address as a shortcut.
 
+Keep the active config and tracked `v4hook.config.example.json` aligned for non-secret contract
+identity, constructor encoding, permissions, checks, scripts, and pool behavior. Put RPC values and
+other secrets only in ignored local state or environment variables.
+
+## Preserve verification integrity
+
+- Never replace Slither or another configured gate with `forge lint` because the tool is missing.
+  Preserve the gate, run the remaining commands individually, and report the missing tool.
+- Never reduce fuzz runs, invariant depth, matching filters, or assertions to make a check pass.
+- If `forge lint` leaves ABI-only artifacts and a later Foundry test reports no tests, run
+  `forge build --force` and rerun the original gate. Add `--force` to a configured test command only
+  when the cache failure is reproduced; still verify that matching tests executed.
+
 ## Implement against pinned BaseHook
 
 Inspect the exact base contract. In the bundled OpenZeppelin pattern, external callbacks apply
@@ -48,6 +61,16 @@ Cover at least:
 
 Add adversarial token and reentrancy cases when the hook transfers tokens or calls external code.
 Increase fuzz depth for return deltas, custom curves, custody, or privileged fee changes.
+
+## Wire simulation honestly
+
+Deployment simulation supplies `V4HOOK_PREDICTED_ADDRESS`, `V4HOOK_HOOK_SALT`, and
+`V4HOOK_CONSTRUCTOR_ARGS`. The separate pool lifecycle supplies `V4HOOK_HOOK_ADDRESS`. Pool scripts
+must resolve the correct hook address for both stages without embedding an address.
+
+Do not point swap-quadrant or postcondition steps at ordinary unit tests merely because the scaffold
+contains placeholders. Those steps must inspect the hook deployed by the plan on the pinned Anvil
+fork. If simulation is outside scope, leave it explicitly unvalidated and do not claim readiness.
 
 ## Route external guidance
 

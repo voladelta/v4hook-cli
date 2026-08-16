@@ -33,7 +33,7 @@ pub fn run_check_suite(config: &LoadedConfig) -> Result<Vec<CheckEvidence>> {
         ),
         (
             "build",
-            ["forge", "build"].map(str::to_owned).to_vec(),
+            ["forge", "build", "--force"].map(str::to_owned).to_vec(),
             None,
         ),
         (

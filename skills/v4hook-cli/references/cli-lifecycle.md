@@ -7,6 +7,8 @@ required state transitions and evidence.
 
 - Run `v4hook init <new-directory>` only for a path that does not exist.
 - Read the generated project instructions and pinned dependency metadata.
+- Resolve and retain one explicit CLI path. Before a scaffold update, preview it and compare the
+  CLI's embedded template with the project's pinned version; never downgrade the project.
 - Copy `v4hook.config.example.json` to the working config and replace every project-specific
   placeholder. Do not assume the example knows the hook, tests, tokens, or network.
 - Run `v4hook doctor --config <config>` before expensive checks.
@@ -16,6 +18,11 @@ required state transitions and evidence.
 Run `v4hook check --config <config>` after focused Foundry tests. It must cover formatting, lint,
 static analysis, build, unit, fuzz, and invariant gates. A filter that executes no matching tests
 is a failure, not a pass.
+
+The check stops at the first failed command. When a configured tool is unavailable, do not rewrite
+the config to bypass it: preserve the command, run later gates individually, and report the exact
+blocker. If lint/cache state makes Foundry report no tests, force a rebuild and rerun the unchanged
+test gate.
 
 ## Plan
 
@@ -36,6 +43,11 @@ Run `v4hook simulate --plan <plan> --output <evidence>`. Require all four stages
 4. Verify balances, deltas, permissions, and final state.
 
 Require the deployed runtime code and reported permissions to match the plan.
+
+Deployment simulation exports `V4HOOK_PREDICTED_ADDRESS`; a later pool plan exports
+`V4HOOK_HOOK_ADDRESS`. Ensure pool scripts accept the address for the lifecycle being exercised.
+Quadrant and postcondition commands must observe the plan-deployed hook, not redeploy an unrelated
+local fixture or use an ordinary unit test as a proxy.
 
 ## Deploy and verify
 

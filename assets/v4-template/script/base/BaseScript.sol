@@ -33,7 +33,11 @@ contract BaseScript is Script, Deployers {
     constructor() {
         token0 = IERC20(vm.envOr("V4HOOK_CURRENCY0", 0x0165878A594ca255338adfa4d48449f69242Eb8F));
         token1 = IERC20(vm.envOr("V4HOOK_CURRENCY1", 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853));
-        hookContract = IHooks(vm.envOr("V4HOOK_HOOK_ADDRESS", address(0)));
+        address configuredHook = vm.envOr("V4HOOK_HOOK_ADDRESS", address(0));
+        if (configuredHook == address(0)) {
+            configuredHook = vm.envOr("V4HOOK_PREDICTED_ADDRESS", address(0));
+        }
+        hookContract = IHooks(configuredHook);
 
         // Make sure artifacts are available, either deploy or configure.
         deployArtifacts();

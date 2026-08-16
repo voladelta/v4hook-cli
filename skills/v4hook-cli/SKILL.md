@@ -29,16 +29,23 @@ launch flow.
 1. Detect a managed project from `.v4hook.toml`, `.v4hook-template-lock.json`, or a v4hook config.
 2. Read the nearest `AGENTS.md`, project `README.md`, `foundry.toml`, remappings, configuration, and
    template lock before deciding how the project works.
-3. Run `v4hook --version` and the relevant `--help` command. Prefer the installed binary. Do not
-   invent flags when the binary is unavailable.
+3. Resolve one CLI binary and use that exact path throughout the task. Honor a user-supplied path;
+   in a v4hook-cli source checkout prefer its freshly built `target/release/v4hook`; otherwise use
+   the PATH-installed binary. Record its path and version, and read the relevant `--help` output.
+   Do not invent flags when the binary is unavailable.
 4. If creation is authorized and no project exists, resolve a safe new directory and run
    `v4hook init <directory>`. Never initialize over an existing path.
 5. Inspect the pinned `vendor/` tree before selecting a base contract or import. Do not fetch,
    upgrade, or edit vendored dependencies unless the user explicitly requests dependency work.
 
+Never apply a scaffold whose embedded template version is older than the project's pinned version.
+Locate a compatible newer CLI or report the version mismatch.
+
 Read [hook-design.md](references/hook-design.md) when selecting the hook architecture, permissions,
 utilities, access control, shares, or constructor. Do not require a generator or MCP; treat any
 compatible generated output only as a draft.
+
+Read [dynamic-fees.md](references/dynamic-fees.md) when a hook overrides or updates LP fees.
 
 ## Route specialist guidance
 
@@ -69,11 +76,13 @@ actions.
    unless the pinned base says otherwise. Do not duplicate an incompatible online template.
 4. Enable only callbacks the implementation uses. Keep one permission set aligned across
    `getHookPermissions()`, deployment configuration, CREATE2 flags, tests, and deployed probing.
-5. Update the contract, deployment script, constructor ABI, artifact path, configuration, and test
-   fixtures together. Preserve the deployment script's `V4HOOK_HOOK_SALT` and
+5. Update the contract, deployment script, constructor ABI, artifact path, active configuration,
+   tracked example configuration, and test fixtures together. Keep secrets and private endpoints
+   out of the tracked example. Preserve the deployment script's `V4HOOK_HOOK_SALT` and
    `V4HOOK_PREDICTED_ADDRESS` integration; let `v4hook plan` mine the address.
-6. Do not edit tests merely to obtain a pass. Diagnose whether a failure is in the implementation,
-   configuration, environment, existing project, or verification contract before repairing it.
+6. Do not edit tests or replace, remove, or relax a configured verification gate merely to obtain a
+   pass. Diagnose whether a failure is in the implementation, configuration, environment, existing
+   project, or verification contract before repairing it.
 
 Read [integration-contract.md](references/integration-contract.md) before changing Solidity,
 deployment scripts, tests, permissions, or config.
@@ -83,6 +92,8 @@ deployment scripts, tests, permissions, or config.
 Run the narrowest relevant test first. Then run the project gates proportionate to the change.
 For a completed hook implementation, finish with the configured format, build, unit, fuzz,
 invariant, and static-analysis checks. Ensure every configured Foundry filter executes real tests.
+If a required tool is unavailable, preserve its command, run the remaining gates individually, and
+report the blocked gate instead of substituting a weaker check.
 
 Read [cli-lifecycle.md](references/cli-lifecycle.md) before planning, simulating, deploying,
 verifying, or launching a pool. Preserve these invariants:

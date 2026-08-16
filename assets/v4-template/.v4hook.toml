@@ -3,8 +3,8 @@ created-with-cli = "0.1.1"
 last-updated-with-cli = "0.1.1"
 
 [template]
-version = "1.1.0"
+version = "1.1.1"
 channel = "stable"
 source = "Uniswap/v4-template"
 revision = "1fbf95547791f0821a170b88c750cb2e04e6818b"
-manifest-digest = "sha256:5bac4b8310824e20d75b615ca8f2c17d81362564e5e7d3ba4f8f3fea76f342c8"
+manifest-digest = "sha256:d2d243e658786cd492af44756e2ae94f627873522831c38ac318e06cd71e0180"
