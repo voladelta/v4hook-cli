@@ -77,6 +77,28 @@ Deployment simulation exports `V4HOOK_PREDICTED_ADDRESS`; a later pool plan expo
 Quadrant and postcondition commands must observe the plan-deployed hook, not redeploy an unrelated
 local fixture or use an ordinary unit test as a proxy.
 
+## Keep an interactive devnet
+
+Use `v4hook devnet` only after a deployment plan exists. It is a persistent development surface for
+browser apps and deterministic multi-wallet scenarios, not an alternative deployment proof.
+
+- `devnet up` must reuse the plan's exact pinned fork and all four simulation stages before it
+  detaches Anvil.
+- Keep the RPC bound to `127.0.0.1`. Export addresses, ABI and disposable account addresses, never
+  the mnemonic or private keys.
+- Treat the unlocked local RPC as browser-accessible disposable state. Stop it when unused and
+  narrow Anvil's allowed origin in `simulation.anvilArgs` when the app has a stable origin.
+- Use project-configured scenario commands for hook-specific Universal Router, Permit2 and
+  `hookData` behavior. Record a seed and evidence so failures reproduce.
+- Use Anvil manual mining when exact same-block batching and ordering matter; use interval mining
+  for browser confirmation behavior.
+- `devnet status`, `reset`, `export`, `run` and `down` must verify process ownership and devnet chain
+  identity before operating. `down` must never signal an unverified PID.
+- `devnet reset` discards interactive state, restores the pinned fork and reruns the plan bootstrap.
+
+The generated web manifest is safe to commit only if the project intentionally wants a local-only
+fixture, but the default `.v4hook/` location is ignored and should normally remain ephemeral.
+
 ## Deploy and verify
 
 Proceed only after explicit authorization for the named network and wallet action. Use the account

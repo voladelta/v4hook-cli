@@ -3,6 +3,7 @@ mod artifact;
 mod checks;
 mod config;
 mod deploy;
+mod devnet;
 mod doctor;
 mod init;
 mod model;
@@ -30,6 +31,7 @@ use crate::{
     checks::run_check_suite,
     config::load_config,
     deploy::{DeployInput, deploy_hook, verify_hook_deployment},
+    devnet::{DevnetScenarioInput, DevnetUpInput},
     doctor::doctor,
     init::initialize_project,
     plan::create_deployment_plan,
@@ -104,6 +106,11 @@ enum Command {
     Pool {
         #[command(subcommand)]
         command: PoolCommand,
+    },
+    /// Run a persistent pinned-fork development network for apps and deterministic scenarios.
+    Devnet {
+        #[command(subcommand)]
+        command: DevnetCommand,
     },
 }
 
@@ -187,6 +194,58 @@ enum PoolCommand {
     },
     /// Rerun the fork gates, broadcast the pool launch, and verify live state.
     Launch(PoolLaunchArgs),
+}
+
+#[derive(Subcommand)]
+enum DevnetCommand {
+    /// Start, bootstrap, verify, and detach a persistent pinned Anvil fork.
+    Up {
+        #[arg(short, long)]
+        plan: PathBuf,
+        #[arg(long, default_value = ".v4hook/devnet.json")]
+        state: PathBuf,
+        #[arg(long, default_value = ".v4hook/devnet-web.json")]
+        manifest: PathBuf,
+        #[arg(long, default_value_t = 8545)]
+        port: u16,
+        #[arg(long)]
+        accounts: Option<u16>,
+        #[arg(long)]
+        block_time: Option<u64>,
+    },
+    /// Verify process ownership, fork identity, hook code, and RPC health.
+    Status {
+        #[arg(long, default_value = ".v4hook/devnet.json")]
+        state: PathBuf,
+    },
+    /// Reset to the pinned fork block and rerun the exact bootstrap steps.
+    Reset {
+        #[arg(long, default_value = ".v4hook/devnet.json")]
+        state: PathBuf,
+    },
+    /// Write a web-safe manifest with addresses, ABI, pool inputs, and local account addresses.
+    Export {
+        #[arg(long, default_value = ".v4hook/devnet.json")]
+        state: PathBuf,
+        #[arg(short, long, default_value = ".v4hook/devnet-web.json")]
+        output: PathBuf,
+    },
+    /// Run one project-configured seeded scenario against the active devnet.
+    Run {
+        #[arg(long, default_value = ".v4hook/devnet.json")]
+        state: PathBuf,
+        #[arg(long)]
+        scenario: String,
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
+        #[arg(short, long, default_value = ".v4hook/devnet-scenario-evidence.json")]
+        output: PathBuf,
+    },
+    /// Stop only the verified Anvil process owned by this devnet state.
+    Down {
+        #[arg(long, default_value = ".v4hook/devnet.json")]
+        state: PathBuf,
+    },
 }
 
 #[derive(Args)]
@@ -432,6 +491,94 @@ fn run() -> Result<i32> {
                     ),
                     force_json,
                 )?;
+            }
+        },
+        Command::Devnet { command } => match command {
+            DevnetCommand::Up {
+                plan,
+                state,
+                manifest,
+                port,
+                accounts,
+                block_time,
+            } => {
+                let result = devnet::up(&DevnetUpInput {
+                    plan_file: &plan,
+                    state_file: &state,
+                    manifest_file: &manifest,
+                    port,
+                    accounts,
+                    block_time_seconds: block_time,
+                })?;
+                print_output(
+                    &result,
+                    &format!(
+                        "Devnet is ready at {} with {} local accounts.\nManifest: {}",
+                        result.rpc_url,
+                        result.accounts,
+                        manifest.display()
+                    ),
+                    force_json,
+                )?;
+            }
+            DevnetCommand::Status { state } => {
+                let result = devnet::status(&state)?;
+                print_output(
+                    &result,
+                    &format!(
+                        "Devnet is healthy at {} (block {}).",
+                        result.rpc_url, result.block_number
+                    ),
+                    force_json,
+                )?;
+            }
+            DevnetCommand::Reset { state } => {
+                let result = devnet::reset(&state)?;
+                print_output(
+                    &result,
+                    &format!("Devnet reset passed at block {}.", result.block_number),
+                    force_json,
+                )?;
+            }
+            DevnetCommand::Export { state, output } => {
+                let result = devnet::export(&state, &output)?;
+                print_output(
+                    &result,
+                    &format!("Wrote web devnet manifest to {}.", output.display()),
+                    force_json,
+                )?;
+            }
+            DevnetCommand::Run {
+                state,
+                scenario,
+                seed,
+                output,
+            } => {
+                let result = devnet::run_scenario(&DevnetScenarioInput {
+                    state_file: &state,
+                    scenario: &scenario,
+                    seed,
+                    output: &output,
+                })?;
+                print_output(
+                    &result,
+                    &format!(
+                        "Devnet scenario {} passed. Evidence: {}",
+                        result.scenario,
+                        output.display()
+                    ),
+                    force_json,
+                )?;
+            }
+            DevnetCommand::Down { state } => {
+                let stopped = devnet::down(&state)?;
+                let result = json!({"ok": true, "stopped": stopped});
+                let human = if stopped {
+                    "Stopped the devnet."
+                } else {
+                    "Removed stale devnet state; no process was running."
+                };
+                print_output(&result, human, force_json)?;
             }
         },
     }

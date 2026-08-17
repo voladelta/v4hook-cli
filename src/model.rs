@@ -14,6 +14,10 @@ fn default_max_fork_block_drift() -> u64 {
     64
 }
 
+pub const fn default_devnet_accounts() -> u16 {
+    100
+}
+
 pub const fn default_minimum_fuzz_runs() -> u64 {
     1_000
 }
@@ -113,6 +117,24 @@ pub struct DeploymentConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetScenario {
+    pub name: String,
+    pub command: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetConfig {
+    #[serde(default = "default_devnet_accounts")]
+    pub accounts: u16,
+    #[serde(default)]
+    pub block_time_seconds: Option<u64>,
+    #[serde(default)]
+    pub scenarios: Vec<DevnetScenario>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PoolConfig {
     pub currency0: String,
     pub currency1: String,
@@ -145,6 +167,8 @@ pub struct V4HookConfig {
     pub checks: ChecksConfig,
     pub simulation: SimulationConfig,
     pub deployment: DeploymentConfig,
+    #[serde(default)]
+    pub devnet: Option<DevnetConfig>,
     #[serde(default)]
     pub pool: Option<PoolConfig>,
 }
@@ -305,6 +329,109 @@ pub struct SimulationEvidence {
     pub anvil_rpc_url: String,
     pub commands: Vec<CommandEvidence>,
     pub deployed_runtime_code_hash: String,
+    pub passed: bool,
+    pub digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetState {
+    pub schema_version: String,
+    pub created_at: String,
+    pub pid: u32,
+    pub port: u16,
+    pub rpc_url: String,
+    pub log_path: String,
+    pub plan_path: String,
+    pub plan_digest: String,
+    pub project_root: String,
+    pub chain_id: u64,
+    pub fork_block_number: u64,
+    pub fork_block_hash: String,
+    pub hook_address: String,
+    pub deployed_runtime_code_hash: String,
+    pub marker_address: String,
+    pub marker_code: String,
+    pub accounts: Vec<String>,
+    pub manifest_path: String,
+    pub digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetHookManifest {
+    pub address: String,
+    pub abi: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetPoolManifest {
+    pub currency0: String,
+    pub currency1: String,
+    pub fee: u32,
+    pub tick_spacing: i32,
+    pub sqrt_price_x96: String,
+    pub tick_lower: i32,
+    pub tick_upper: i32,
+    pub liquidity: String,
+    pub amount0_max: String,
+    pub amount1_max: String,
+    pub recipient: String,
+    pub hook_data: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetManifest {
+    pub schema_version: String,
+    pub created_at: String,
+    pub warning: String,
+    pub rpc_url: String,
+    pub chain_id: u64,
+    pub fork_block_number: u64,
+    pub fork_block_hash: String,
+    pub plan_digest: String,
+    pub hook: DevnetHookManifest,
+    pub contracts: BTreeMap<String, String>,
+    pub accounts: Vec<String>,
+    pub pool: Option<DevnetPoolManifest>,
+    pub scenarios: Vec<String>,
+    pub digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetStatus {
+    pub running: bool,
+    pub rpc_url: String,
+    pub chain_id: u64,
+    pub block_number: u64,
+    pub fork_block_number: u64,
+    pub hook_address: String,
+    pub accounts: usize,
+    pub plan_digest: String,
+    pub manifest_path: String,
+    pub log_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetScenarioEvidence {
+    pub schema_version: String,
+    pub created_at: String,
+    pub plan_digest: String,
+    pub scenario: String,
+    pub seed: u64,
+    pub accounts: usize,
+    pub start_block: u64,
+    pub end_block: Option<u64>,
+    pub command: Vec<String>,
+    pub exit_code: i32,
+    pub duration_ms: u64,
+    pub stdout_hash: String,
+    pub stderr_hash: String,
+    pub integrity_passed: bool,
     pub passed: bool,
     pub digest: String,
 }

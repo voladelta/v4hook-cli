@@ -10,8 +10,9 @@ use regex::Regex;
 
 use crate::{
     model::{
-        LoadedConfig, PoolConfig, SimulationConfig, SimulationKind, SimulationStep, V4HookConfig,
-        default_minimum_fuzz_runs, default_minimum_invariant_depth, default_minimum_invariant_runs,
+        DevnetConfig, LoadedConfig, PoolConfig, SimulationConfig, SimulationKind, SimulationStep,
+        V4HookConfig, default_minimum_fuzz_runs, default_minimum_invariant_depth,
+        default_minimum_invariant_runs,
     },
     permissions::{permission_flags, validate_hook_address_fee},
     process::validate_foundry_test_command,
@@ -150,6 +151,32 @@ fn validate_simulation(simulation: &mut SimulationConfig) -> Result<()> {
     )
 }
 
+fn validate_devnet(devnet: &DevnetConfig) -> Result<()> {
+    if devnet.accounts == 0 || devnet.accounts > 1_000 {
+        bail!("devnet.accounts must be between 1 and 1000");
+    }
+    if devnet.block_time_seconds == Some(0) {
+        bail!("devnet.blockTimeSeconds must be positive when configured");
+    }
+    let name = Regex::new(r"^[a-z][a-z0-9_-]*$").expect("static regex");
+    let mut names = BTreeSet::new();
+    for scenario in &devnet.scenarios {
+        if !name.is_match(&scenario.name) {
+            bail!(
+                "devnet scenario names must start with a lowercase letter and contain only lowercase letters, digits, '-' or '_'"
+            );
+        }
+        if !names.insert(&scenario.name) {
+            bail!("duplicate devnet scenario name: {}", scenario.name);
+        }
+        validate_command(
+            &scenario.command,
+            &format!("devnet scenario {} command", scenario.name),
+        )?;
+    }
+    Ok(())
+}
+
 fn validate_pool(pool: &mut PoolConfig, permissions: &[String]) -> Result<()> {
     pool.currency0 = normalize_address(&pool.currency0, "currency0")?;
     pool.currency1 = normalize_address(&pool.currency1, "currency1")?;
@@ -232,6 +259,9 @@ pub fn load_config(config_file: impl AsRef<Path>) -> Result<LoadedConfig> {
         &mut value.deployment.required_authorities,
         "deployment.requiredAuthorities",
     )?;
+    if let Some(devnet) = &value.devnet {
+        validate_devnet(devnet)?;
+    }
     if value.contract.artifact.is_empty() || value.deployment.script.is_empty() {
         bail!("contract.artifact and deployment.script cannot be empty");
     }
@@ -682,5 +712,31 @@ mod tests {
         );
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn validates_devnet_account_and_scenario_boundaries() {
+        let valid = DevnetConfig {
+            accounts: 100,
+            block_time_seconds: Some(1),
+            scenarios: vec![crate::model::DevnetScenario {
+                name: "mizu-market".to_owned(),
+                command: vec!["pnpm".to_owned(), "simulate".to_owned()],
+            }],
+        };
+        validate_devnet(&valid).unwrap();
+
+        let mut invalid_accounts = valid.clone();
+        invalid_accounts.accounts = 0;
+        assert!(validate_devnet(&invalid_accounts).is_err());
+
+        let mut duplicate = valid.clone();
+        duplicate.scenarios.push(duplicate.scenarios[0].clone());
+        assert!(
+            validate_devnet(&duplicate)
+                .unwrap_err()
+                .to_string()
+                .contains("duplicate")
+        );
     }
 }

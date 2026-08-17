@@ -1,10 +1,10 @@
 schema-version = 1
-created-with-cli = "0.1.2"
-last-updated-with-cli = "0.1.2"
+created-with-cli = "0.2.0"
+last-updated-with-cli = "0.2.0"
 
 [template]
-version = "1.2.1"
+version = "1.3.0"
 channel = "stable"
 source = "Uniswap/v4-template"
 revision = "1fbf95547791f0821a170b88c750cb2e04e6818b"
-manifest-digest = "sha256:96ab26be582b93bfa633c4ccbb481a65913499a26eaeb5a88bdbc31d56b49f2c"
+manifest-digest = "sha256:fa3054cec665a386a53473d89b98bd772a517c736ecacfa33255eeffdbf7e80e"

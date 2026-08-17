@@ -152,6 +152,12 @@ verifying, or launching a pool. Preserve these invariants:
 - Keep the worktree clean for planning without discarding or silently committing unrelated work.
 - Treat passing checks and fork evidence as necessary evidence, never as a security audit.
 
+When the user needs a persistent browser or multi-wallet environment, use `v4hook devnet` from an
+existing immutable deployment plan. Keep it localhost-only, export only the generated web-safe
+manifest, and put hook-specific Universal Router/Permit2 traffic in deterministic project scenario
+commands. Never expose Anvil mnemonics or private keys, and never describe devnet scenario evidence
+as the mandatory one-shot deployment simulation.
+
 Call a project locally ready only after the repair loop is clean. Call it testnet-ready only when
 sentinels are replaced, roles and broadcast stages are executable, `doctor`, `check`, `plan`, and
 `simulate` pass, code size and gas are reviewed, and the security checklist has no unresolved

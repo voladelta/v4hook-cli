@@ -39,6 +39,10 @@ Do not install skills globally or commit downloaded skill directories unless the
   every contract role required by one broadcast in that step's `requiredAuthorities`; use
   `deployment.requiredAuthorities` and `pool.launchAuthorities` for live scripts, and split stages
   when the declared role addresses differ.
+- For browser-app or multi-wallet testing, use `v4hook devnet` from an immutable deployment plan.
+  Keep its RPC localhost-only. Implement hook-specific traffic as deterministic configured
+  scenarios through the intended Universal Router and Permit2 integration, and never expose Anvil
+  mnemonics or private keys.
 
 ## Verify changes
 

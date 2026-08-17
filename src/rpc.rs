@@ -8,7 +8,7 @@ use reqwest::blocking::Client;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
-use crate::util::normalize_hex;
+use crate::util::{normalize_address, normalize_hex};
 
 fn redact_rpc_url(message: &str, url: &str) -> String {
     message.replace(url, "[REDACTED RPC URL]")
@@ -107,6 +107,21 @@ pub fn code_at(url: &str, address: &str) -> Result<String> {
         &rpc::<String>(url, "eth_getCode", &[json!(address), json!("latest")])?,
         "contract code",
     )
+}
+
+pub fn anvil_accounts(url: &str) -> Result<Vec<String>> {
+    rpc::<Vec<String>>(url, "eth_accounts", &[])?
+        .into_iter()
+        .enumerate()
+        .map(|(index, address)| normalize_address(&address, &format!("Anvil account {index}")))
+        .collect()
+}
+
+pub fn set_anvil_code(url: &str, address: &str, code: &str) -> Result<()> {
+    let address = normalize_address(address, "Anvil marker address")?;
+    let code = normalize_hex(code, "Anvil marker code")?;
+    rpc_value(url, "anvil_setCode", &[json!(address), json!(code)])?;
+    Ok(())
 }
 
 pub fn prepare_anvil_sender(url: &str, address: &str) -> Result<()> {

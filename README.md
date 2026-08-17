@@ -132,7 +132,7 @@ This command is for maintainers of this repository:
 
 ```sh
 v4hook template refresh \
-  --version 1.2.1 \
+  --version 1.3.0 \
   --source Uniswap/v4-template \
   --reference main
 ```
@@ -221,6 +221,85 @@ v4hook simulate \
   --plan .v4hook/deployment-plan.json \
   --output .v4hook/deployment-evidence.json
 ```
+
+## Run a persistent local devnet
+
+Use a devnet when a browser app or multi-wallet simulator needs to keep interacting with the exact
+plan-deployed hook. Unlike `v4hook simulate`, a devnet remains available after its verification
+steps finish:
+
+```sh
+v4hook devnet up --plan .v4hook/deployment-plan.json
+v4hook devnet status
+v4hook devnet reset
+v4hook devnet down
+```
+
+`devnet up` starts a pinned Anvil fork on `127.0.0.1:8545`, reruns the plan's deploy, representative
+pool, quadrant and postcondition steps, and provisions 100 deterministic unlocked development
+accounts by default. It writes private process state to `.v4hook/devnet.json`, Anvil logs below
+`.v4hook/devnet/`, and a web-safe manifest to `.v4hook/devnet-web.json`. The manifest contains the
+local RPC URL, chain and fork identity, hook ABI and address, plan-bound Uniswap addresses, optional
+pool configuration, scenario names and account addresses. It never contains private keys or the
+Anvil mnemonic.
+
+The CLI verifies a process-command fingerprint, fork block hash, on-chain ownership marker and hook
+runtime before status, reset, export or scenario operations. `devnet down` refuses to signal a PID
+that does not match the recorded Anvil process. `reset` restores the pinned fork and repeats the
+same plan-bound bootstrap; it does not preserve interactive changes.
+`devnet down` retains the generated manifest and private log for debugging. The next `devnet up`
+may replace only a digest-valid v4hook manifest and creates a new private log.
+
+Override the development account count, port or interval mining when needed:
+
+```sh
+v4hook devnet up \
+  --plan .v4hook/deployment-plan.json \
+  --accounts 100 \
+  --port 8545 \
+  --block-time 1
+```
+
+For deterministic same-block ordering, leave interval mining unset and have the scenario switch
+Anvil to manual mining through its documented RPC methods. Bind only to localhost. These unlocked
+accounts are disposable local identities and must never receive or reuse public-network funds.
+Anvil permits browser origins by default, so any page that can reach the local RPC can mutate this
+disposable chain. Stop it when it is not in use, or add `--allow-origin` and the exact development
+site origin to `simulation.anvilArgs` when only one web origin should have access.
+
+Hook-specific traffic belongs in the hook project because only that project knows its router ABI,
+Permit2 flow and `hookData` encoding. Declare commands in the optional `devnet` config:
+
+```json
+{
+  "devnet": {
+    "accounts": 100,
+    "scenarios": [
+      {
+        "name": "market",
+        "command": ["pnpm", "devnet:market", "--", "--manifest", "{devnetManifest}", "--seed", "{seed}"]
+      }
+    ]
+  }
+}
+```
+
+Run a scenario and retain hashed evidence:
+
+```sh
+v4hook devnet run --scenario market --seed 42
+```
+
+Scenario commands receive `V4HOOK_DEVNET_RPC_URL`, `V4HOOK_DEVNET_MANIFEST`,
+`V4HOOK_HOOK_ADDRESS`, `V4HOOK_SCENARIO_SEED` and `V4HOOK_DEVNET_WALLET_COUNT`. Available command
+placeholders are `{devnetRpc}`, `{devnetManifest}`, `{hookAddress}`, `{projectRoot}`, `{seed}` and
+`{walletCount}`. A scenario command that starts and exits nonzero still writes evidence before the
+CLI exits unsuccessfully; an executable that cannot be started fails before an execution record
+exists.
+
+Use the Uniswap Universal Router and Permit2 for application-parity swaps; never treat the local
+`PoolSwapTest` fixture as production-router evidence. Devnet runs are development evidence and do
+not replace the immutable one-shot simulation or audit required for deployment.
 
 `doctor` also checks configured script and test paths, obvious low-address placeholders, positive
 pool allocations and declared broadcast-authority compatibility. These readiness issues do not

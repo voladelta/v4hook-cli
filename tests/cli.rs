@@ -37,6 +37,19 @@ fn pool_help_describes_each_workflow_step() {
 }
 
 #[test]
+fn devnet_help_exposes_the_persistent_lifecycle() {
+    let output = Command::new(env!("CARGO_BIN_EXE_v4hook"))
+        .args(["devnet", "--help"])
+        .output()
+        .expect("run devnet help");
+    assert!(output.status.success());
+    let help = String::from_utf8_lossy(&output.stdout);
+    for command in ["up", "status", "reset", "export", "run", "down"] {
+        assert!(help.contains(command), "missing devnet command {command}");
+    }
+}
+
+#[test]
 fn init_keeps_captured_stdout_machine_readable() {
     let destination = TemporaryDirectory::new("init");
     let output = Command::new(env!("CARGO_BIN_EXE_v4hook"))
@@ -58,8 +71,8 @@ fn init_keeps_captured_stdout_machine_readable() {
     assert!(agent_instructions.contains("v4-security-foundations"));
     let metadata = fs::read_to_string(destination.0.join(".v4hook.toml"))
         .expect("scaffold includes template metadata");
-    assert!(metadata.contains("created-with-cli = \"0.1.2\""));
-    assert!(metadata.contains("version = \"1.2.1\""));
+    assert!(metadata.contains("created-with-cli = \"0.2.0\""));
+    assert!(metadata.contains("version = \"1.3.0\""));
     assert!(destination.0.join(".env.example").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());
     assert!(
