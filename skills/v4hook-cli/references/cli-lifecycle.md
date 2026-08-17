@@ -33,7 +33,8 @@ analysis with Foundry lint.
 
 Run `v4hook check --config <config>` after focused Foundry tests. It must cover formatting, lint,
 static analysis, build, unit, fuzz, and invariant gates. A filter that executes no matching tests
-is a failure, not a pass.
+is a failure, not a pass. A skipped test is also a failure. Inspect the emitted test summaries and
+require at least 1,000 cases for every fuzz test and 256 campaigns at depth 500 for every invariant.
 
 The check stops at the first failed command. When a configured tool is unavailable, do not rewrite
 the config to bypass it: preserve the command, run later gates individually, and report the exact
@@ -66,8 +67,10 @@ Require the deployed runtime code and reported permissions to match the plan.
 
 Inspect simulation scripts as transactions, not ordinary test helpers. Each broadcast stage must
 use an address authorized for every call in that stage. Split registrar, treasury, owner, and admin
-operations when their signers differ. Never broadcast a call that is expected to revert; perform
-diagnostic probes outside broadcast or through read-only quoting.
+operations when their signers differ. Declare role/address pairs in `requiredAuthorities` and use
+`deployment.requiredAuthorities` and `pool.launchAuthorities` for live scripts. Never broadcast a
+call that is expected to revert; perform diagnostic probes outside broadcast or through read-only
+quoting.
 
 Deployment simulation exports `V4HOOK_PREDICTED_ADDRESS`; a later pool plan exports
 `V4HOOK_HOOK_ADDRESS`. Ensure pool scripts accept the address for the lifecycle being exercised.

@@ -71,7 +71,11 @@ actions.
 
 1. Convert the idea into a concrete specification: goal, lifecycle events, user/router identity,
    fund movement, return deltas, mutable state, administration, constructor inputs, supported
-   tokens, and representative pool behavior.
+   tokens, and representative pool behavior. When adapting a reference implementation, also make
+   a protected-invariant ledger for its load-bearing behavior: economic formulas and allocations,
+   liquidity provenance, custody and recovery, trust boundaries, role separation, and supported
+   paths. Preserve each item or obtain the user's explicit approval for a material design change;
+   documenting a regression as a risk is not approval.
 2. Select only base hooks and utilities present in the pinned vendor tree. Prefer the simplest base
    that implements required behavior.
 3. Extend the scaffold's pinned OpenZeppelin `BaseHook` API. Its external callback wrappers enforce
@@ -91,12 +95,21 @@ actions.
    pass. Diagnose whether a failure is in the implementation, configuration, environment, existing
    project, or verification contract before repairing it.
 7. Model broadcast authority explicitly. Split stages when registration, treasury, ownership, or
-   administration require different signers. Never place an expected-to-revert diagnostic call
-   inside a Foundry `broadcast` or `startBroadcast` region; probe outside broadcast or use a
-   read-only quote path.
+   administration require different signers. Declare role/address pairs in each broadcast step's
+   `requiredAuthorities`, in `deployment.requiredAuthorities` for live deployment, and in
+   `pool.launchAuthorities` for the live pool script so the CLI can select the fork sender and
+   reject incompatible live senders. Never place an expected-to-revert diagnostic call inside a
+   Foundry `broadcast` or `startBroadcast` region; probe outside broadcast or use a read-only quote
+   path.
 
 Read [integration-contract.md](references/integration-contract.md) before changing Solidity,
 deployment scripts, tests, permissions, or config.
+
+Before the first edit, record the effective verification baseline, including `forge config --json`
+fuzz runs, invariant runs/depth/fail-on-revert, configured commands and filters, and the tests each
+filter executes. The final settings and executed counts must meet or exceed that baseline unless the
+user explicitly requests a reduction. An explicit project setting below an inherited/default value
+is still a weakened gate.
 
 ## Verify and advance the lifecycle
 
@@ -110,6 +123,15 @@ Treat the first full check as the start of a bounded repair loop:
 2. Fix every locally actionable defect and rerun its narrow reproducer.
 3. Rerun the complete configured check and final `v4-security-foundations` review.
 4. Repeat until local gates pass and no known locally actionable defect remains.
+
+A green first pass is not completion. Perform a distinct adversarial review pass for every hook
+implementation or material adaptation. Read [final-review.md](references/final-review.md), inspect
+the final diff as untrusted input, reapply `v4-security-foundations`, and compare the result against
+the protected-invariant ledger and pre-edit verification baseline. Use an independent maintainer or
+security review skill when available; otherwise deliberately restart the review from the original
+requirements rather than the implementation narrative. Repair every must-fix finding and rerun the
+complete check. Do not weaken a gate, broaden an analyzer exclusion, or introduce a skip while
+repairing the first pass.
 
 If Slither is missing, prefer `uv tool install slither-analyzer` when uv and tool installation are
 available. Use `uvx --from slither-analyzer slither .` for a one-off independent run. Do not install

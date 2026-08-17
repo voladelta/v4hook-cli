@@ -7,6 +7,7 @@ v4-periphery/=vendor/v4-periphery/
 
 @openzeppelin/uniswap-hooks/=vendor/uniswap-hooks/
 @openzeppelin/contracts/=vendor/openzeppelin-contracts/contracts/
+openzeppelin/=vendor/openzeppelin-contracts/contracts/
 
 permit2/=vendor/permit2/
 solmate/=vendor/solmate/

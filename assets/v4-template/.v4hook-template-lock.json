@@ -1,7 +1,7 @@
 {
   "schemaVersion": "v4hook.template-lock.v2",
-  "templateVersion": "1.2.0",
-  "snapshot": "v4hook-template-1.2.0",
+  "templateVersion": "1.2.1",
+  "snapshot": "v4hook-template-1.2.1",
   "repository": "Uniswap/v4-template",
   "commit": "1fbf95547791f0821a170b88c750cb2e04e6818b",
   "dependencies": {
@@ -27,7 +27,7 @@
       "ownership": "managed"
     },
     "AGENTS.md": {
-      "sha256": "sha256:67035519874e99ac173c13105bfb4fea8507411bd20b6d41e6047005e5387881",
+      "sha256": "sha256:d6acec9a26da643c6c9ba83a272fe099dde1cfe8be3eb05d971f5e1da91c9651",
       "ownership": "managed"
     },
     "LICENSE": {
@@ -43,7 +43,7 @@
       "ownership": "managed"
     },
     "remappings.txt": {
-      "sha256": "sha256:01a8846e998d2638398e20fe294567ed5c943fd87e59bd1833b39cbd745606e8",
+      "sha256": "sha256:2710ff45a415884835bcdd6a0d94911dc6eee9d2a9f13bd91854e20ddf98d2b4",
       "ownership": "managed"
     },
     "script/00_DeployHook.s.sol": {
@@ -115,7 +115,7 @@
       "ownership": "seed"
     },
     "v4hook.config.example.json": {
-      "sha256": "sha256:2e7c65affe944ddf939559b0edfad5639aae8cddb2a9a22c0956dd9a657f19b0",
+      "sha256": "sha256:113001d731e65d4860b9aae3bbede3c9df4830f56c0ca0a35e7a6b50f478c952",
       "ownership": "managed"
     },
     "vendor/forge-std/LICENSE-APACHE": {

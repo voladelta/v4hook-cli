@@ -9,7 +9,7 @@ use anyhow::{Context, Result, bail};
 use crate::{
     artifact::{code_hash, load_artifact, make_init_code, mine_create2},
     checks::run_check_suite,
-    config::rpc_url_from_env,
+    config::{require_project_readiness, rpc_url_from_env},
     model::{
         ArtifactIdentity, ContractIdentity, DeploymentPlan, HookIdentity, LoadedConfig,
         NetworkIdentity, PlanDeployment, PlanSimulation, SourceIdentity, ToolchainIdentity,
@@ -112,6 +112,7 @@ pub fn source_identity(cwd: &Path) -> Result<SourceIdentity> {
 }
 
 pub fn create_deployment_plan(config: &LoadedConfig) -> Result<DeploymentPlan> {
+    require_project_readiness(config)?;
     status("Checking the target network...");
     let project_root = Path::new(&config.project_root);
     let rpc_url = rpc_url_from_env(&config.value.network.rpc_url_env, project_root)?;
@@ -207,6 +208,7 @@ pub fn create_deployment_plan(config: &LoadedConfig) -> Result<DeploymentPlan> {
         },
         deployment: PlanDeployment {
             script: config.value.deployment.script.clone(),
+            required_authorities: config.value.deployment.required_authorities.clone(),
         },
         digest: String::new(),
     };

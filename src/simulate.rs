@@ -6,12 +6,15 @@ use crate::{
     anvil::start_anvil,
     artifact::{code_hash, mask_immutable_references},
     checks::run_check_suite,
-    config::{load_config, rpc_url_from_env},
+    config::{broadcast_authority, load_config, rpc_url_from_env},
     model::{CommandEvidence, SimulationEvidence},
     permissions::probe_hook_permissions,
     plan::{absolute_path, network_contract_environment, read_deployment_plan, verify_plan_inputs},
-    process::{FoundryTestKind, redact_command, require_foundry_tests, require_success},
-    rpc::{block_hash, code_at},
+    process::{
+        FoundryTestKind, FoundryTestRequirements, redact_command, require_foundry_tests,
+        require_success,
+    },
+    rpc::{block_hash, code_at, prepare_anvil_sender},
     util::{calculate_digest, interpolate, now_iso, sha256_bytes, status, write_json},
 };
 
@@ -51,7 +54,7 @@ pub fn simulate_deployment(
         if code_at(&anvil.rpc_url, &plan.hook.predicted_address)? != "0x" {
             bail!("predicted hook address is occupied in the fork before simulation");
         }
-        let variables = BTreeMap::from([
+        let base_variables = BTreeMap::from([
             ("anvilRpc".to_owned(), anvil.rpc_url.clone()),
             ("anvilSender".to_owned(), anvil.sender.clone()),
             ("projectRoot".to_owned(), plan.project_root.clone()),
@@ -66,8 +69,8 @@ pub fn simulate_deployment(
             ),
             ("chainId".to_owned(), plan.network.chain_id.to_string()),
         ]);
-        let mut environment = network_contract_environment(&plan.network)?;
-        environment.extend([
+        let mut base_environment = network_contract_environment(&plan.network)?;
+        base_environment.extend([
             ("V4HOOK_ANVIL_RPC_URL".to_owned(), anvil.rpc_url.clone()),
             ("V4HOOK_SIMULATOR_ADDRESS".to_owned(), anvil.sender.clone()),
             (
@@ -87,24 +90,34 @@ pub fn simulate_deployment(
                 "Running {} simulation step...",
                 step.kind.as_str()
             ));
+            let sender = broadcast_authority(&step.required_authorities)?.unwrap_or(&anvil.sender);
+            prepare_anvil_sender(&anvil.rpc_url, sender)?;
+            let mut variables = base_variables.clone();
+            variables.insert("anvilSender".to_owned(), sender.to_owned());
+            let mut environment = base_environment.clone();
+            environment.insert("V4HOOK_SIMULATOR_ADDRESS".to_owned(), sender.to_owned());
             let command = step
                 .command
                 .iter()
                 .map(|part| interpolate(part, &variables))
                 .collect::<Result<Vec<_>>>()?;
-            let command_result = if matches!(
+            let (command_result, test_summary) = if matches!(
                 step.kind,
                 crate::model::SimulationKind::Quadrants
                     | crate::model::SimulationKind::Postconditions
             ) {
-                require_foundry_tests(
+                let (result, summary) = require_foundry_tests(
                     &command,
                     project_root,
                     Some(&environment),
-                    FoundryTestKind::Any,
-                )?
+                    FoundryTestRequirements::kind(FoundryTestKind::Any),
+                )?;
+                (result, Some(summary))
             } else {
-                require_success(&command, project_root, Some(&environment), false)?
+                (
+                    require_success(&command, project_root, Some(&environment), false)?,
+                    None,
+                )
             };
             commands.push(CommandEvidence {
                 kind: step.kind.clone(),
@@ -113,6 +126,7 @@ pub fn simulate_deployment(
                 duration_ms: command_result.duration_ms,
                 stdout_hash: sha256_bytes(&command_result.stdout),
                 stderr_hash: sha256_bytes(&command_result.stderr),
+                test_summary,
             });
         }
         let deployed_code = code_at(&anvil.rpc_url, &plan.hook.predicted_address)?;

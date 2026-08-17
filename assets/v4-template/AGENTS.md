@@ -35,6 +35,10 @@ Do not install skills globally or commit downloaded skill directories unless the
 - Keep hook permissions minimal and consistent with the deployed CREATE2 address flags.
 - Verify current network addresses against official sources and check deployed bytecode before trusting an address.
 - Exercise both swap directions with exact-input and exact-output cases, plus accounting postconditions. Ensure unit, fuzz and invariant filters execute real tests.
+- Keep the configured minimum fuzz and invariant workloads at or above the scaffold floors. Declare
+  every contract role required by one broadcast in that step's `requiredAuthorities`; use
+  `deployment.requiredAuthorities` and `pool.launchAuthorities` for live scripts, and split stages
+  when the declared role addresses differ.
 
 ## Verify changes
 

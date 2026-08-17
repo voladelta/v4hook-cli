@@ -5,12 +5,15 @@ use serde_json::{Value, json};
 
 use crate::{
     anvil::start_anvil,
-    config::{load_config, rpc_url_from_env},
+    config::{broadcast_authority, load_config, require_broadcast_sender, rpc_url_from_env},
     deploy::{verify_hook_at_rpc, verify_hook_deployment, verify_network_at_rpc},
     model::{CommandEvidence, DeploymentPlan, PoolPlan, PoolSimulationEvidence},
     plan::{absolute_path, network_contract_environment, read_deployment_plan, verify_plan_inputs},
-    process::{FoundryTestKind, redact_command, require_foundry_tests, require_success},
-    rpc::{block_hash, block_number, chain_id},
+    process::{
+        FoundryTestKind, FoundryTestRequirements, redact_command, require_foundry_tests,
+        require_success,
+    },
+    rpc::{block_hash, block_number, chain_id, prepare_anvil_sender},
     util::{
         assert_digest, calculate_digest, interpolate, normalize_address, now_iso, read_json,
         requires_mainnet_acknowledgement, sha256_bytes, status, write_json,
@@ -187,34 +190,40 @@ pub fn simulate_pool(input: &SimulatePoolInput<'_>) -> Result<PoolSimulationEvid
         verify_network_at_rpc(&deployment, &anvil.rpc_url, false)?;
         verify_hook_at_rpc(&deployment, &anvil.rpc_url)?;
         let pool_plan_path = absolute_path(input.pool_plan)?;
-        let mut variables = pool_variables(&deployment, &pool, &anvil.sender, &pool_plan_path)?;
-        variables.insert("anvilRpc".to_owned(), anvil.rpc_url.clone());
-        let mut environment = pool_env(&deployment, &pool, &anvil.sender)?;
-        environment.insert("V4HOOK_ANVIL_RPC_URL".to_owned(), anvil.rpc_url.clone());
         let mut commands = Vec::new();
         for step in &pool.pool.simulation_steps {
             status(&format!(
                 "Running {} pool simulation step...",
                 step.kind.as_str()
             ));
+            let sender = broadcast_authority(&step.required_authorities)?.unwrap_or(&anvil.sender);
+            prepare_anvil_sender(&anvil.rpc_url, sender)?;
+            let mut variables = pool_variables(&deployment, &pool, sender, &pool_plan_path)?;
+            variables.insert("anvilRpc".to_owned(), anvil.rpc_url.clone());
+            let mut environment = pool_env(&deployment, &pool, sender)?;
+            environment.insert("V4HOOK_ANVIL_RPC_URL".to_owned(), anvil.rpc_url.clone());
             let command = step
                 .command
                 .iter()
                 .map(|part| interpolate(part, &variables))
                 .collect::<Result<Vec<_>>>()?;
-            let result = if matches!(
+            let (result, test_summary) = if matches!(
                 step.kind,
                 crate::model::SimulationKind::Quadrants
                     | crate::model::SimulationKind::Postconditions
             ) {
-                require_foundry_tests(
+                let (result, summary) = require_foundry_tests(
                     &command,
                     project_root,
                     Some(&environment),
-                    FoundryTestKind::Any,
-                )?
+                    FoundryTestRequirements::kind(FoundryTestKind::Any),
+                )?;
+                (result, Some(summary))
             } else {
-                require_success(&command, project_root, Some(&environment), false)?
+                (
+                    require_success(&command, project_root, Some(&environment), false)?,
+                    None,
+                )
             };
             commands.push(CommandEvidence {
                 kind: step.kind.clone(),
@@ -223,6 +232,7 @@ pub fn simulate_pool(input: &SimulatePoolInput<'_>) -> Result<PoolSimulationEvid
                 duration_ms: result.duration_ms,
                 stdout_hash: sha256_bytes(&result.stdout),
                 stderr_hash: sha256_bytes(&result.stderr),
+                test_summary,
             });
         }
         let mut evidence = PoolSimulationEvidence {
@@ -279,6 +289,7 @@ pub fn launch_pool(input: &LaunchPoolInput<'_>) -> Result<Value> {
         bail!("confirmation mismatch; expected {expected}");
     }
     let sender = normalize_address(input.sender, "sender")?;
+    require_broadcast_sender(&pool.pool.launch_authorities, &sender, "pool launch")?;
     status("Rerunning the mandatory pool fork simulation before broadcast...");
     let evidence = simulate_pool(&SimulatePoolInput {
         deployment_plan: input.deployment_plan,

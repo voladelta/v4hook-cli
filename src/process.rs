@@ -8,6 +8,8 @@ use std::{
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
+use crate::model::FoundryTestSummary;
+
 const SECRET_FLAGS: [&str; 5] = [
     "--private-key",
     "--password",
@@ -31,6 +33,25 @@ pub enum FoundryTestKind {
     Unit,
     Fuzz,
     Invariant,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FoundryTestRequirements {
+    pub kind: FoundryTestKind,
+    pub minimum_fuzz_runs: Option<u64>,
+    pub minimum_invariant_runs: Option<u64>,
+    pub minimum_invariant_depth: Option<u64>,
+}
+
+impl FoundryTestRequirements {
+    pub const fn kind(kind: FoundryTestKind) -> Self {
+        Self {
+            kind,
+            minimum_fuzz_runs: None,
+            minimum_invariant_runs: None,
+            minimum_invariant_depth: None,
+        }
+    }
 }
 
 impl FoundryTestKind {
@@ -138,7 +159,78 @@ pub fn validate_foundry_test_command(command: &[String], label: &str) -> Result<
     Ok(())
 }
 
-fn foundry_test_kinds(stdout: &str) -> Result<BTreeMap<String, usize>> {
+fn update_minimum(current: &mut Option<u64>, value: u64) {
+    *current = Some(current.map_or(value, |minimum| minimum.min(value)));
+}
+
+fn record_foundry_kind(
+    kind: &serde_json::Map<String, Value>,
+    summary: &mut FoundryTestSummary,
+    requirements: FoundryTestRequirements,
+) -> Result<()> {
+    summary.total += 1;
+    if kind.contains_key("Unit") {
+        summary.unit += 1;
+        return Ok(());
+    }
+    if let Some(fuzz) = kind.get("Fuzz") {
+        summary.fuzz += 1;
+        let runs = fuzz
+            .get("runs")
+            .and_then(Value::as_u64)
+            .context("fuzz test result is missing its run count")?;
+        if let Some(minimum) = requirements.minimum_fuzz_runs
+            && runs < minimum
+        {
+            bail!("fuzz test ran {runs} cases; configured minimum is {minimum}");
+        }
+        update_minimum(&mut summary.minimum_fuzz_runs, runs);
+        return Ok(());
+    }
+    if let Some(invariant) = kind.get("Invariant") {
+        summary.invariant += 1;
+        let runs = invariant
+            .get("runs")
+            .and_then(Value::as_u64)
+            .context("invariant test result is missing its run count")?;
+        let calls = invariant
+            .get("calls")
+            .and_then(Value::as_u64)
+            .context("invariant test result is missing its call count")?;
+        let reverts = invariant
+            .get("reverts")
+            .and_then(Value::as_u64)
+            .context("invariant test result is missing its revert count")?;
+        if let Some(minimum) = requirements.minimum_invariant_runs
+            && runs < minimum
+        {
+            bail!("invariant test ran {runs} campaigns; configured minimum is {minimum}");
+        }
+        if let Some(depth) = requirements.minimum_invariant_depth {
+            let minimum_calls = runs
+                .checked_mul(depth)
+                .context("configured invariant workload overflows u64")?;
+            if calls < minimum_calls {
+                bail!(
+                    "invariant test made {calls} calls across {runs} campaigns; configured minimum depth {depth} requires at least {minimum_calls} calls"
+                );
+            }
+        }
+        update_minimum(&mut summary.minimum_invariant_runs, runs);
+        update_minimum(&mut summary.minimum_invariant_calls, calls);
+        summary.invariant_reverts = summary
+            .invariant_reverts
+            .checked_add(reverts)
+            .context("invariant revert count overflows u64")?;
+        return Ok(());
+    }
+    bail!("forge test result contains an unknown test kind")
+}
+
+fn foundry_test_summary(
+    stdout: &str,
+    requirements: FoundryTestRequirements,
+) -> Result<FoundryTestSummary> {
     if stdout.contains("No tests found") {
         bail!("forge test matched no tests");
     }
@@ -147,7 +239,16 @@ fn foundry_test_kinds(stdout: &str) -> Result<BTreeMap<String, usize>> {
     let suites = report
         .as_object()
         .context("forge test --json returned an unexpected report")?;
-    let mut kinds = BTreeMap::new();
+    let mut summary = FoundryTestSummary {
+        total: 0,
+        unit: 0,
+        fuzz: 0,
+        invariant: 0,
+        minimum_fuzz_runs: None,
+        minimum_invariant_runs: None,
+        minimum_invariant_calls: None,
+        invariant_reverts: 0,
+    };
     for suite in suites.values() {
         let Some(results) = suite.get("test_results").and_then(Value::as_object) else {
             continue;
@@ -158,20 +259,34 @@ fn foundry_test_kinds(stdout: &str) -> Result<BTreeMap<String, usize>> {
                 .and_then(Value::as_str)
                 .context("forge test result is missing its status")?;
             if status != "Success" {
-                bail!("forge test report contains a {status} test");
+                bail!(
+                    "forge test report contains a {status} test; skipped tests do not satisfy a gate"
+                );
             }
             let kind = result
                 .get("kind")
                 .and_then(Value::as_object)
-                .and_then(|value| value.keys().next())
                 .context("forge test result is missing its test kind")?;
-            *kinds.entry(kind.clone()).or_insert(0) += 1;
+            record_foundry_kind(kind, &mut summary, requirements)?;
         }
     }
-    if kinds.values().sum::<usize>() == 0 {
+    if summary.total == 0 {
         bail!("forge test matched no tests");
     }
-    Ok(kinds)
+    let matched_expected = match requirements.kind {
+        FoundryTestKind::Any => true,
+        FoundryTestKind::Unit => summary.unit > 0,
+        FoundryTestKind::Fuzz => summary.fuzz > 0,
+        FoundryTestKind::Invariant => summary.invariant > 0,
+    };
+    if !matched_expected {
+        bail!(
+            "{} gate did not execute any {} tests",
+            requirements.kind.name(),
+            requirements.kind.foundry_name().unwrap_or("matching")
+        );
+    }
+    Ok(summary)
 }
 
 fn redact_command_output(command: &[String], output: &str) -> String {
@@ -197,9 +312,9 @@ pub fn require_foundry_tests(
     command: &[String],
     cwd: impl AsRef<Path>,
     env: Option<&BTreeMap<String, String>>,
-    kind: FoundryTestKind,
-) -> Result<CommandResult> {
-    validate_foundry_test_command(command, kind.name())?;
+    requirements: FoundryTestRequirements,
+) -> Result<(CommandResult, FoundryTestSummary)> {
+    validate_foundry_test_command(command, requirements.kind.name())?;
     let mut report_command = command.to_vec();
     if !report_command.iter().any(|part| part == "--json") {
         let position = report_command
@@ -209,13 +324,8 @@ pub fn require_foundry_tests(
         report_command.insert(position, "--json".to_owned());
     }
     let result = require_success(&report_command, cwd, env, false)?;
-    let kinds = foundry_test_kinds(&result.stdout)?;
-    if let Some(expected) = kind.foundry_name()
-        && !kinds.contains_key(expected)
-    {
-        bail!("{} gate did not execute any {expected} tests", kind.name());
-    }
-    Ok(result)
+    let summary = foundry_test_summary(&result.stdout, requirements)?;
+    Ok((result, summary))
 }
 
 pub fn command_exists(command: &str) -> bool {
@@ -284,13 +394,16 @@ mod tests {
     #[test]
     fn rejects_empty_foundry_test_reports() {
         assert!(
-            foundry_test_kinds("No tests found in project!")
-                .unwrap_err()
-                .to_string()
-                .contains("matched no tests")
+            foundry_test_summary(
+                "No tests found in project!",
+                FoundryTestRequirements::kind(FoundryTestKind::Any),
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("matched no tests")
         );
         assert!(
-            foundry_test_kinds("{}")
+            foundry_test_summary("{}", FoundryTestRequirements::kind(FoundryTestKind::Any),)
                 .unwrap_err()
                 .to_string()
                 .contains("matched no tests")
@@ -298,20 +411,27 @@ mod tests {
     }
 
     #[test]
-    fn counts_foundry_test_kinds() {
+    fn reports_foundry_test_workloads() {
         let report = r#"{
             "test/Hook.t.sol:HookTest": {
                 "test_results": {
                     "test_unit()": {"status": "Success", "kind": {"Unit": {"gas": 1}}},
                     "test_fuzz(uint256)": {"status": "Success", "kind": {"Fuzz": {"runs": 256}}},
-                    "invariant_balances()": {"status": "Success", "kind": {"Invariant": {"runs": 256}}}
+                    "invariant_balances()": {"status": "Success", "kind": {"Invariant": {"runs": 256, "calls": 128000, "reverts": 7}}}
                 }
             }
         }"#;
-        let kinds = foundry_test_kinds(report).unwrap();
-        assert_eq!(kinds.get("Unit"), Some(&1));
-        assert_eq!(kinds.get("Fuzz"), Some(&1));
-        assert_eq!(kinds.get("Invariant"), Some(&1));
+        let summary =
+            foundry_test_summary(report, FoundryTestRequirements::kind(FoundryTestKind::Any))
+                .unwrap();
+        assert_eq!(summary.total, 3);
+        assert_eq!(summary.unit, 1);
+        assert_eq!(summary.fuzz, 1);
+        assert_eq!(summary.invariant, 1);
+        assert_eq!(summary.minimum_fuzz_runs, Some(256));
+        assert_eq!(summary.minimum_invariant_runs, Some(256));
+        assert_eq!(summary.minimum_invariant_calls, Some(128_000));
+        assert_eq!(summary.invariant_reverts, 7);
     }
 
     #[test]
@@ -324,11 +444,71 @@ mod tests {
             }
         }"#;
         assert!(
-            foundry_test_kinds(report)
+            foundry_test_summary(report, FoundryTestRequirements::kind(FoundryTestKind::Any),)
                 .unwrap_err()
                 .to_string()
                 .contains("Failure")
         );
+    }
+
+    #[test]
+    fn rejects_skipped_tests() {
+        let report = r#"{
+            "test/Fork.t.sol:ForkTest": {
+                "test_results": {
+                    "setUp()": {"status": "Skipped", "kind": {"Unit": {"gas": 0}}}
+                }
+            }
+        }"#;
+        let error =
+            foundry_test_summary(report, FoundryTestRequirements::kind(FoundryTestKind::Any))
+                .unwrap_err()
+                .to_string();
+        assert!(error.contains("Skipped"));
+        assert!(error.contains("do not satisfy a gate"));
+    }
+
+    #[test]
+    fn rejects_weakened_fuzz_and_invariant_workloads() {
+        let fuzz = r#"{
+            "test/Fuzz.t.sol:FuzzTest": {"test_results": {
+                "testFuzz_value(uint256)": {"status": "Success", "kind": {"Fuzz": {"runs": 999}}}
+            }}
+        }"#;
+        let fuzz_error = foundry_test_summary(
+            fuzz,
+            FoundryTestRequirements {
+                kind: FoundryTestKind::Fuzz,
+                minimum_fuzz_runs: Some(1_000),
+                minimum_invariant_runs: None,
+                minimum_invariant_depth: None,
+            },
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(fuzz_error.contains("999"));
+        assert!(fuzz_error.contains("1000"));
+
+        let invariant = r#"{
+            "test/Invariant.t.sol:InvariantTest": {"test_results": {
+                "invariant_value()": {"status": "Success", "kind": {"Invariant": {
+                    "runs": 256, "calls": 127999, "reverts": 0
+                }}}
+            }}
+        }"#;
+        let invariant_error = foundry_test_summary(
+            invariant,
+            FoundryTestRequirements {
+                kind: FoundryTestKind::Invariant,
+                minimum_fuzz_runs: None,
+                minimum_invariant_runs: Some(256),
+                minimum_invariant_depth: Some(500),
+            },
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(invariant_error.contains("127999"));
+        assert!(invariant_error.contains("128000"));
     }
 
     #[test]

@@ -132,7 +132,7 @@ This command is for maintainers of this repository:
 
 ```sh
 v4hook template refresh \
-  --version 1.2.0 \
+  --version 1.2.1 \
   --source Uniswap/v4-template \
   --reference main
 ```
@@ -165,6 +165,18 @@ Copy `v4hook.config.example.json` into your hook repository. Update every projec
 The starter shows the file format. It does not know your contract name, permissions, test files or pool tokens.
 
 The unit, fuzz, invariant, quadrant and postcondition gates must use `forge test`. Each gate fails if its filter matches no tests. The unit, fuzz and invariant commands must also execute at least one test of their named Foundry test type.
+
+`checks.minimumFuzzRuns`, `checks.minimumInvariantRuns` and
+`checks.minimumInvariantDepth` are fail-closed workload floors. They cannot be configured below
+1,000 fuzz cases or 256 invariant campaigns at depth 500. Check and simulation evidence records
+the actual executed test counts and workloads. A skipped Foundry test never satisfies a gate.
+
+For a broadcast step that depends on contract roles, declare each role and address in the step's
+`requiredAuthorities` object. Use `deployment.requiredAuthorities` for live hook deployment and
+`pool.launchAuthorities` for the live pool script. One broadcast has one sender, so `doctor` and
+`plan` reject a group whose declared roles resolve to different addresses. Fork simulation
+impersonates the declared stage authority; live commands reject a different sender. Split the
+operation into separate stages when registrar, treasury, owner or administrator roles differ.
 
 Constructor arguments must be ABI encoded. For example:
 
@@ -209,6 +221,10 @@ v4hook simulate \
   --plan .v4hook/deployment-plan.json \
   --output .v4hook/deployment-evidence.json
 ```
+
+`doctor` also checks configured script and test paths, obvious low-address placeholders, positive
+pool allocations and declared broadcast-authority compatibility. These readiness issues do not
+prevent local contract checks, but they must be resolved before `plan`.
 
 Treat the first check as the start of a repair loop, not the final report. Fix every locally
 actionable contract, script, configuration, test and analyzer finding, rerun the narrow failing

@@ -3,18 +3,26 @@ use std::path::Path;
 use anyhow::Result;
 
 use crate::{
-    model::{CheckEvidence, LoadedConfig},
-    process::{CommandResult, FoundryTestKind, require_foundry_tests, require_success},
+    model::{CheckEvidence, FoundryTestSummary, LoadedConfig},
+    process::{
+        CommandResult, FoundryTestKind, FoundryTestRequirements, require_foundry_tests,
+        require_success,
+    },
     util::{sha256_bytes, status},
 };
 
-fn evidence(name: &str, result: &CommandResult) -> CheckEvidence {
+fn evidence(
+    name: &str,
+    result: &CommandResult,
+    test_summary: Option<FoundryTestSummary>,
+) -> CheckEvidence {
     CheckEvidence {
         name: name.to_owned(),
         command: result.command.clone(),
         duration_ms: result.duration_ms,
         stdout_hash: sha256_bytes(&result.stdout),
         stderr_hash: sha256_bytes(&result.stderr),
+        test_summary,
     }
 }
 
@@ -39,30 +47,41 @@ pub fn run_check_suite(config: &LoadedConfig) -> Result<Vec<CheckEvidence>> {
         (
             "unit",
             config.value.checks.unit.clone(),
-            Some(FoundryTestKind::Unit),
+            Some(FoundryTestRequirements::kind(FoundryTestKind::Unit)),
         ),
         (
             "fuzz",
             config.value.checks.fuzz.clone(),
-            Some(FoundryTestKind::Fuzz),
+            Some(FoundryTestRequirements {
+                kind: FoundryTestKind::Fuzz,
+                minimum_fuzz_runs: Some(config.value.checks.minimum_fuzz_runs),
+                minimum_invariant_runs: None,
+                minimum_invariant_depth: None,
+            }),
         ),
         (
             "invariant",
             config.value.checks.invariant.clone(),
-            Some(FoundryTestKind::Invariant),
+            Some(FoundryTestRequirements {
+                kind: FoundryTestKind::Invariant,
+                minimum_fuzz_runs: None,
+                minimum_invariant_runs: Some(config.value.checks.minimum_invariant_runs),
+                minimum_invariant_depth: Some(config.value.checks.minimum_invariant_depth),
+            }),
         ),
     ];
     let cwd = Path::new(&config.project_root);
     commands
         .into_iter()
-        .map(|(name, command, test_kind)| {
+        .map(|(name, command, test_requirements)| {
             status(&format!("Running {name} check..."));
-            let result = if let Some(kind) = test_kind {
-                require_foundry_tests(&command, cwd, None, kind)?
+            let (result, test_summary) = if let Some(requirements) = test_requirements {
+                let (result, summary) = require_foundry_tests(&command, cwd, None, requirements)?;
+                (result, Some(summary))
             } else {
-                require_success(&command, cwd, None, false)?
+                (require_success(&command, cwd, None, false)?, None)
             };
-            Ok(evidence(name, &result))
+            Ok(evidence(name, &result, test_summary))
         })
         .collect()
 }

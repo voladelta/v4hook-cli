@@ -1,11 +1,18 @@
-use std::{env, fs, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    env, fs,
+    path::Path,
+};
 
 use alloy_primitives::Address;
 use anyhow::{Context, Result, bail};
 use regex::Regex;
 
 use crate::{
-    model::{LoadedConfig, SimulationKind, SimulationStep, V4HookConfig},
+    model::{
+        LoadedConfig, PoolConfig, SimulationConfig, SimulationKind, SimulationStep, V4HookConfig,
+        default_minimum_fuzz_runs, default_minimum_invariant_depth, default_minimum_invariant_runs,
+    },
     permissions::{permission_flags, validate_hook_address_fee},
     process::validate_foundry_test_command,
     util::{normalize_address, normalize_hex, parse_unsigned, resolve_from},
@@ -90,7 +97,103 @@ fn validate_check_commands(config: &V4HookConfig) -> Result<()> {
     validate_foundry_test_command(&config.checks.unit, "checks.unit")?;
     validate_foundry_test_command(&config.checks.fuzz, "checks.fuzz")?;
     validate_foundry_test_command(&config.checks.invariant, "checks.invariant")?;
+    if config.checks.minimum_fuzz_runs < default_minimum_fuzz_runs() {
+        bail!(
+            "checks.minimumFuzzRuns must be at least {}",
+            default_minimum_fuzz_runs()
+        );
+    }
+    if config.checks.minimum_invariant_runs < default_minimum_invariant_runs() {
+        bail!(
+            "checks.minimumInvariantRuns must be at least {}",
+            default_minimum_invariant_runs()
+        );
+    }
+    if config.checks.minimum_invariant_depth < default_minimum_invariant_depth() {
+        bail!(
+            "checks.minimumInvariantDepth must be at least {}",
+            default_minimum_invariant_depth()
+        );
+    }
     Ok(())
+}
+
+fn normalize_authorities(authorities: &mut BTreeMap<String, String>, label: &str) -> Result<()> {
+    for (role, address) in authorities {
+        if role.trim().is_empty() {
+            bail!("{label} authority role names cannot be empty");
+        }
+        *address = normalize_address(address, &format!("{label}.{role}"))?;
+    }
+    Ok(())
+}
+
+fn validate_simulation(simulation: &mut SimulationConfig) -> Result<()> {
+    if simulation.max_fork_block_drift == 0 {
+        bail!("simulation.maxForkBlockDrift must be positive");
+    }
+    for (index, step) in simulation.steps.iter_mut().enumerate() {
+        normalize_authorities(
+            &mut step.required_authorities,
+            &format!("simulation.steps[{index}].requiredAuthorities"),
+        )?;
+    }
+    require_steps(
+        &simulation.steps,
+        &[
+            SimulationKind::Deploy,
+            SimulationKind::Pool,
+            SimulationKind::Quadrants,
+            SimulationKind::Postconditions,
+        ],
+        "simulation",
+    )
+}
+
+fn validate_pool(pool: &mut PoolConfig, permissions: &[String]) -> Result<()> {
+    pool.currency0 = normalize_address(&pool.currency0, "currency0")?;
+    pool.currency1 = normalize_address(&pool.currency1, "currency1")?;
+    let currency0: Address = pool.currency0.parse()?;
+    let currency1: Address = pool.currency1.parse()?;
+    if currency0 >= currency1 {
+        bail!("pool currencies must be sorted so currency0 < currency1");
+    }
+    if !(1..=32_767).contains(&pool.tick_spacing) {
+        bail!("tickSpacing must be between 1 and 32767");
+    }
+    if pool.tick_lower < -887_272 || pool.tick_upper > 887_272 || pool.tick_lower >= pool.tick_upper
+    {
+        bail!("pool tick range is invalid");
+    }
+    if pool.tick_lower % pool.tick_spacing != 0 || pool.tick_upper % pool.tick_spacing != 0 {
+        bail!("pool ticks must be multiples of tickSpacing");
+    }
+    parse_unsigned(&pool.sqrt_price_x96, "sqrtPriceX96", 256)?;
+    parse_unsigned(&pool.liquidity, "liquidity", 256)?;
+    parse_unsigned(&pool.amount0_max, "amount0Max", 256)?;
+    parse_unsigned(&pool.amount1_max, "amount1Max", 256)?;
+    pool.recipient = normalize_address(&pool.recipient, "recipient")?;
+    pool.hook_data = normalize_hex(&pool.hook_data, "hookData")?;
+    normalize_authorities(&mut pool.launch_authorities, "pool.launchAuthorities")?;
+    for (index, step) in pool.simulation_steps.iter_mut().enumerate() {
+        normalize_authorities(
+            &mut step.required_authorities,
+            &format!("pool.simulationSteps[{index}].requiredAuthorities"),
+        )?;
+    }
+    validate_hook_address_fee(permissions, pool.fee)?;
+    require_steps(
+        &pool.simulation_steps,
+        &[
+            SimulationKind::Pool,
+            SimulationKind::Quadrants,
+            SimulationKind::Postconditions,
+        ],
+        "pool simulation",
+    )?;
+    validate_command(&pool.live_verify, "pool.liveVerify")?;
+    reject_state_changing_verification(&pool.live_verify)?;
+    reject_live_rpc_arguments(&pool.live_verify)
 }
 
 pub fn load_config(config_file: impl AsRef<Path>) -> Result<LoadedConfig> {
@@ -124,61 +227,16 @@ pub fn load_config(config_file: impl AsRef<Path>) -> Result<LoadedConfig> {
         normalize_hex(&value.contract.constructor_args, "constructorArgs")?;
     permission_flags(&value.contract.permissions)?;
     validate_check_commands(&value)?;
-    if value.simulation.max_fork_block_drift == 0 {
-        bail!("simulation.maxForkBlockDrift must be positive");
-    }
-    require_steps(
-        &value.simulation.steps,
-        &[
-            SimulationKind::Deploy,
-            SimulationKind::Pool,
-            SimulationKind::Quadrants,
-            SimulationKind::Postconditions,
-        ],
-        "simulation",
+    validate_simulation(&mut value.simulation)?;
+    normalize_authorities(
+        &mut value.deployment.required_authorities,
+        "deployment.requiredAuthorities",
     )?;
     if value.contract.artifact.is_empty() || value.deployment.script.is_empty() {
         bail!("contract.artifact and deployment.script cannot be empty");
     }
     if let Some(pool) = &mut value.pool {
-        pool.currency0 = normalize_address(&pool.currency0, "currency0")?;
-        pool.currency1 = normalize_address(&pool.currency1, "currency1")?;
-        let currency0: Address = pool.currency0.parse()?;
-        let currency1: Address = pool.currency1.parse()?;
-        if currency0 >= currency1 {
-            bail!("pool currencies must be sorted so currency0 < currency1");
-        }
-        if !(1..=32_767).contains(&pool.tick_spacing) {
-            bail!("tickSpacing must be between 1 and 32767");
-        }
-        if pool.tick_lower < -887_272
-            || pool.tick_upper > 887_272
-            || pool.tick_lower >= pool.tick_upper
-        {
-            bail!("pool tick range is invalid");
-        }
-        if pool.tick_lower % pool.tick_spacing != 0 || pool.tick_upper % pool.tick_spacing != 0 {
-            bail!("pool ticks must be multiples of tickSpacing");
-        }
-        parse_unsigned(&pool.sqrt_price_x96, "sqrtPriceX96", 256)?;
-        parse_unsigned(&pool.liquidity, "liquidity", 256)?;
-        parse_unsigned(&pool.amount0_max, "amount0Max", 256)?;
-        parse_unsigned(&pool.amount1_max, "amount1Max", 256)?;
-        pool.recipient = normalize_address(&pool.recipient, "recipient")?;
-        pool.hook_data = normalize_hex(&pool.hook_data, "hookData")?;
-        validate_hook_address_fee(&value.contract.permissions, pool.fee)?;
-        require_steps(
-            &pool.simulation_steps,
-            &[
-                SimulationKind::Pool,
-                SimulationKind::Quadrants,
-                SimulationKind::Postconditions,
-            ],
-            "pool simulation",
-        )?;
-        validate_command(&pool.live_verify, "pool.liveVerify")?;
-        reject_state_changing_verification(&pool.live_verify)?;
-        reject_live_rpc_arguments(&pool.live_verify)?;
+        validate_pool(pool, &value.contract.permissions)?;
     }
     let directory = path
         .parent()
@@ -191,6 +249,248 @@ pub fn load_config(config_file: impl AsRef<Path>) -> Result<LoadedConfig> {
         value,
         raw,
     })
+}
+
+fn conspicuous_address_sentinel(address: &str, allow_native: bool) -> bool {
+    let body = address.strip_prefix("0x").unwrap_or(address);
+    let significant = body.trim_start_matches('0');
+    if significant.is_empty() {
+        return !allow_native;
+    }
+    significant.len() <= 4
+}
+
+fn glob_regex(pattern: &str) -> Regex {
+    let mut expression = String::from("^");
+    let mut characters = pattern.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character {
+            '*' if characters.peek() == Some(&'*') => {
+                characters.next();
+                expression.push_str(".*");
+            }
+            '*' => expression.push_str("[^/]*"),
+            '?' => expression.push_str("[^/]"),
+            _ => expression.push_str(&regex::escape(&character.to_string())),
+        }
+    }
+    expression.push('$');
+    Regex::new(&expression).expect("escaped glob creates a valid regex")
+}
+
+fn any_matching_file(root: &Path, pattern: &str) -> bool {
+    if !pattern.contains(['*', '?']) {
+        return root.join(pattern).is_file();
+    }
+    let wildcard = pattern.find(['*', '?']).unwrap_or(0);
+    let prefix = &pattern[..wildcard];
+    let base = prefix
+        .rfind('/')
+        .map_or(root.to_path_buf(), |index| root.join(&prefix[..index]));
+    let matcher = glob_regex(pattern);
+    let mut pending = vec![base];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = fs::read_dir(directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.is_file()
+                && path
+                    .strip_prefix(root)
+                    .ok()
+                    .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+                    .is_some_and(|relative| matcher.is_match(&relative))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn command_match_path(command: &[String]) -> Option<&str> {
+    for (index, argument) in command.iter().enumerate() {
+        if argument == "--match-path" {
+            return command.get(index + 1).map(String::as_str);
+        }
+        if let Some(value) = argument.strip_prefix("--match-path=") {
+            return Some(value);
+        }
+    }
+    None
+}
+
+fn script_source(target: &str) -> Option<&str> {
+    let source = target.split(':').next().unwrap_or(target);
+    Path::new(source)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("sol"))
+        .then_some(source)
+}
+
+fn command_script_source(command: &[String]) -> Option<&str> {
+    command
+        .iter()
+        .skip(2)
+        .find_map(|argument| script_source(argument))
+}
+
+fn push_command_path_issues(
+    issues: &mut Vec<String>,
+    project_root: &Path,
+    command: &[String],
+    label: &str,
+) {
+    if let Some(pattern) = command_match_path(command)
+        && !any_matching_file(project_root, pattern)
+    {
+        issues.push(format!("{label} --match-path matches no files: {pattern}"));
+    }
+    if let Some(source) = command_script_source(command)
+        && !project_root.join(source).is_file()
+    {
+        issues.push(format!("{label} script source does not exist: {source}"));
+    }
+}
+
+fn push_authority_issues(
+    issues: &mut Vec<String>,
+    authorities: &BTreeMap<String, String>,
+    label: &str,
+) {
+    let distinct = authorities.values().collect::<BTreeSet<_>>();
+    if distinct.len() > 1 {
+        let roles = authorities.keys().cloned().collect::<Vec<_>>().join(", ");
+        issues.push(format!(
+            "{label} is one broadcast but requires authorities with different addresses: {roles}"
+        ));
+    }
+    for (role, address) in authorities {
+        if conspicuous_address_sentinel(address, false) {
+            issues.push(format!(
+                "{label} authority {role} is still a sentinel: {address}"
+            ));
+        }
+    }
+}
+
+pub fn broadcast_authority(authorities: &BTreeMap<String, String>) -> Result<Option<&str>> {
+    let distinct = authorities.values().collect::<BTreeSet<_>>();
+    if distinct.len() > 1 {
+        bail!("one broadcast cannot use multiple authority addresses");
+    }
+    Ok(distinct.into_iter().next().map(String::as_str))
+}
+
+pub fn require_broadcast_sender(
+    authorities: &BTreeMap<String, String>,
+    sender: &str,
+    label: &str,
+) -> Result<()> {
+    if let Some(required) = broadcast_authority(authorities)?
+        && required != sender
+    {
+        bail!("{label} requires sender {required}, not {sender}");
+    }
+    Ok(())
+}
+
+pub fn project_readiness_issues(config: &LoadedConfig) -> Vec<String> {
+    let project_root = Path::new(&config.project_root);
+    let mut issues = Vec::new();
+    for (label, address) in [
+        ("network.poolManager", &config.value.network.pool_manager),
+        (
+            "network.positionManager",
+            &config.value.network.position_manager,
+        ),
+        (
+            "network.universalRouter",
+            &config.value.network.universal_router,
+        ),
+        ("network.quoter", &config.value.network.quoter),
+        ("network.stateView", &config.value.network.state_view),
+        ("network.permit2", &config.value.network.permit2),
+        (
+            "network.create2Deployer",
+            &config.value.network.create2_deployer,
+        ),
+    ] {
+        if conspicuous_address_sentinel(address, false) {
+            issues.push(format!("{label} is still a sentinel: {address}"));
+        }
+    }
+    for (label, command) in [
+        ("checks.unit", &config.value.checks.unit),
+        ("checks.fuzz", &config.value.checks.fuzz),
+        ("checks.invariant", &config.value.checks.invariant),
+    ] {
+        push_command_path_issues(&mut issues, project_root, command, label);
+    }
+    if let Some(source) = script_source(&config.value.deployment.script)
+        && !project_root.join(source).is_file()
+    {
+        issues.push(format!("deployment script source does not exist: {source}"));
+    }
+    push_authority_issues(
+        &mut issues,
+        &config.value.deployment.required_authorities,
+        "deployment.requiredAuthorities",
+    );
+    for (index, step) in config.value.simulation.steps.iter().enumerate() {
+        let label = format!("simulation.steps[{index}]");
+        push_command_path_issues(&mut issues, project_root, &step.command, &label);
+        push_authority_issues(&mut issues, &step.required_authorities, &label);
+    }
+    if let Some(pool) = &config.value.pool {
+        for (label, address, allow_native) in [
+            ("pool.currency0", &pool.currency0, true),
+            ("pool.currency1", &pool.currency1, false),
+            ("pool.recipient", &pool.recipient, false),
+        ] {
+            if conspicuous_address_sentinel(address, allow_native) {
+                issues.push(format!("{label} is still a sentinel: {address}"));
+            }
+        }
+        for (label, value) in [
+            ("pool.liquidity", &pool.liquidity),
+            ("pool.amount0Max", &pool.amount0_max),
+            ("pool.amount1Max", &pool.amount1_max),
+        ] {
+            if parse_unsigned(value, label, 256).is_ok_and(|value| value.is_zero()) {
+                issues.push(format!("{label} must be positive before planning"));
+            }
+        }
+        if let Some(source) = script_source(&pool.launch_script)
+            && !project_root.join(source).is_file()
+        {
+            issues.push(format!(
+                "pool launch script source does not exist: {source}"
+            ));
+        }
+        push_authority_issues(
+            &mut issues,
+            &pool.launch_authorities,
+            "pool.launchAuthorities",
+        );
+        for (index, step) in pool.simulation_steps.iter().enumerate() {
+            let label = format!("pool.simulationSteps[{index}]");
+            push_command_path_issues(&mut issues, project_root, &step.command, &label);
+            push_authority_issues(&mut issues, &step.required_authorities, &label);
+        }
+    }
+    issues
+}
+
+pub fn require_project_readiness(config: &LoadedConfig) -> Result<()> {
+    let issues = project_readiness_issues(config);
+    if !issues.is_empty() {
+        bail!("project configuration is not ready: {}", issues.join("; "));
+    }
+    Ok(())
 }
 
 pub fn rpc_url_from_env(name: &str, project_root: &Path) -> Result<String> {
@@ -311,5 +611,76 @@ mod tests {
             "script/VerifyPool.s.sol:VerifyPool".to_owned(),
         ])
         .unwrap();
+    }
+
+    #[test]
+    fn detects_stage_paths_sentinels_and_incompatible_authorities() {
+        let root = temporary_directory();
+        fs::create_dir_all(root.join("test/fork")).unwrap();
+        fs::write(
+            root.join("test/fork/SwapQuadrants.t.sol"),
+            "contract Test {}\n",
+        )
+        .unwrap();
+
+        assert!(any_matching_file(&root, "test/fork/**"));
+        assert!(any_matching_file(&root, "test/fork/SwapQuadrants.t.sol"));
+        assert!(!any_matching_file(&root, "test/invariant/**"));
+        assert!(conspicuous_address_sentinel(
+            "0x0000000000000000000000000000000000000003",
+            false
+        ));
+        assert!(!conspicuous_address_sentinel(
+            "0x0000000000000000000000000000000000000000",
+            true
+        ));
+        assert!(!conspicuous_address_sentinel(
+            "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+            false
+        ));
+
+        let authorities = BTreeMap::from([
+            (
+                "registrar".to_owned(),
+                "0x1000000000000000000000000000000000000000".to_owned(),
+            ),
+            (
+                "treasury".to_owned(),
+                "0x2000000000000000000000000000000000000000".to_owned(),
+            ),
+        ]);
+        let mut issues = Vec::new();
+        push_authority_issues(&mut issues, &authorities, "pool stage");
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].contains("different addresses"));
+
+        let shared = BTreeMap::from([
+            (
+                "registrar".to_owned(),
+                "0x1000000000000000000000000000000000000000".to_owned(),
+            ),
+            (
+                "treasury".to_owned(),
+                "0x1000000000000000000000000000000000000000".to_owned(),
+            ),
+        ]);
+        require_broadcast_sender(
+            &shared,
+            "0x1000000000000000000000000000000000000000",
+            "pool stage",
+        )
+        .unwrap();
+        assert!(
+            require_broadcast_sender(
+                &shared,
+                "0x2000000000000000000000000000000000000000",
+                "pool stage",
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("requires sender")
+        );
+
+        fs::remove_dir_all(root).unwrap();
     }
 }

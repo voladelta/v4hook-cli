@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 
 use crate::{
     artifact::{code_hash, mask_immutable_references},
-    config::rpc_url_from_env,
+    config::{require_broadcast_sender, rpc_url_from_env},
     model::DeploymentPlan,
     permissions::probe_hook_permissions,
     plan::{absolute_path, network_contract_environment, read_deployment_plan, verify_plan_inputs},
@@ -110,6 +110,11 @@ pub fn deploy_hook(input: &DeployInput<'_>) -> Result<Value> {
         bail!("confirmation mismatch; expected {expected_confirmation}");
     }
     let sender = normalize_address(input.sender, "sender")?;
+    require_broadcast_sender(
+        &plan.deployment.required_authorities,
+        &sender,
+        "hook deployment",
+    )?;
     status("Rerunning the mandatory fork simulation before broadcast...");
     let evidence = simulate_deployment(&plan_file, Some(input.evidence_output))?;
     verify_plan_inputs(&plan)?;

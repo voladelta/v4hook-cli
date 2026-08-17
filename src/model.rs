@@ -14,6 +14,18 @@ fn default_max_fork_block_drift() -> u64 {
     64
 }
 
+pub const fn default_minimum_fuzz_runs() -> u64 {
+    1_000
+}
+
+pub const fn default_minimum_invariant_runs() -> u64 {
+    256
+}
+
+pub const fn default_minimum_invariant_depth() -> u64 {
+    500
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum SimulationKind {
@@ -39,6 +51,8 @@ impl SimulationKind {
 pub struct SimulationStep {
     pub kind: SimulationKind,
     pub command: Vec<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub required_authorities: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +85,12 @@ pub struct ChecksConfig {
     pub fuzz: Vec<String>,
     pub invariant: Vec<String>,
     pub static_analysis: Vec<String>,
+    #[serde(default = "default_minimum_fuzz_runs")]
+    pub minimum_fuzz_runs: u64,
+    #[serde(default = "default_minimum_invariant_runs")]
+    pub minimum_invariant_runs: u64,
+    #[serde(default = "default_minimum_invariant_depth")]
+    pub minimum_invariant_depth: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +107,8 @@ pub struct SimulationConfig {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DeploymentConfig {
     pub script: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub required_authorities: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,6 +128,8 @@ pub struct PoolConfig {
     #[serde(default = "default_hex")]
     pub hook_data: String,
     pub launch_script: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub launch_authorities: BTreeMap<String, String>,
     pub simulation_steps: Vec<SimulationStep>,
     pub live_verify: Vec<String>,
 }
@@ -141,6 +165,21 @@ pub struct CheckEvidence {
     pub duration_ms: u64,
     pub stdout_hash: String,
     pub stderr_hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub test_summary: Option<FoundryTestSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FoundryTestSummary {
+    pub total: u64,
+    pub unit: u64,
+    pub fuzz: u64,
+    pub invariant: u64,
+    pub minimum_fuzz_runs: Option<u64>,
+    pub minimum_invariant_runs: Option<u64>,
+    pub minimum_invariant_calls: Option<u64>,
+    pub invariant_reverts: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -218,6 +257,8 @@ pub struct PlanSimulation {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlanDeployment {
     pub script: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub required_authorities: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -248,6 +289,8 @@ pub struct CommandEvidence {
     pub duration_ms: u64,
     pub stdout_hash: String,
     pub stderr_hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub test_summary: Option<FoundryTestSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

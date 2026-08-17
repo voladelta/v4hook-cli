@@ -109,6 +109,16 @@ pub fn code_at(url: &str, address: &str) -> Result<String> {
     )
 }
 
+pub fn prepare_anvil_sender(url: &str, address: &str) -> Result<()> {
+    rpc_value(url, "anvil_impersonateAccount", &[json!(address)])?;
+    rpc_value(
+        url,
+        "anvil_setBalance",
+        &[json!(address), json!("0x21e19e0c9bab2400000")],
+    )?;
+    Ok(())
+}
+
 pub fn wait_for_rpc(url: &str, timeout: Duration) -> Result<()> {
     let started = Instant::now();
     let mut last_error = None;

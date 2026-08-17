@@ -33,7 +33,10 @@ Return-delta permissions require their parent callback. Let configuration valida
 
 Treat signer identity as part of the integration contract. A broadcast script may group calls only
 when one signer is authorized for all of them. Split registrar-only, treasury-only, owner-only, and
-admin-only operations into separate stages when the roles differ.
+admin-only operations into separate stages when the roles differ. Declare the role/address pairs in
+the step's `requiredAuthorities`; use `deployment.requiredAuthorities` and
+`pool.launchAuthorities` for live scripts. An empty declaration means the CLI cannot validate
+contract-specific signer compatibility, not that every signer is authorized.
 
 Keep the active config and tracked `v4hook.config.example.json` aligned for non-secret contract
 identity, constructor encoding, permissions, checks, scripts, and pool behavior. Put RPC values and
@@ -44,9 +47,15 @@ other secrets only in ignored local state or environment variables.
 - Never replace Slither or another configured gate with `forge lint` because the tool is missing.
   Preserve the gate, run the remaining commands individually, and report the missing tool.
 - Filter pinned `vendor/` paths from Slither detector output, fail on high-severity project
-  findings, and keep an explicit triage for accepted lower-severity false positives. Do not ignore
+  findings, and keep an explicit source-location triage for accepted lower-severity false
+  positives. Do not globally exclude a detector class to hide a project finding. Do not ignore
   dependency pinning or compiler-known-bug review merely because vendor detector noise is filtered.
-- Never reduce fuzz runs, invariant depth, matching filters, or assertions to make a check pass.
+- Before editing, capture effective Foundry fuzz and invariant values from `forge config --json` and
+  the configured gate commands. Never reduce runs, invariant depth, fail-on-revert behavior,
+  matching filters, assertions, or executed test counts to make a check pass. Compare the final
+  effective values and counts against that baseline. Keep the configured workload floors at or
+  above 1,000 fuzz runs and 256 invariant campaigns at depth 500; inspect the actual counts emitted
+  in check evidence.
 - Never catch an expected revert inside `broadcast` or `startBroadcast`; Foundry records calls at
   that depth as transactions. Move the probe outside broadcast or use a read-only quoter.
 - If `forge lint` leaves ABI-only artifacts and a later Foundry test reports no tests, run
@@ -85,6 +94,11 @@ expected success relationship. A nonzero-call assertion alone can pass while eve
 Deployment simulation supplies `V4HOOK_PREDICTED_ADDRESS`, `V4HOOK_HOOK_SALT`, and
 `V4HOOK_CONSTRUCTOR_ARGS`. The separate pool lifecycle supplies `V4HOOK_HOOK_ADDRESS`. Pool scripts
 must resolve the correct hook address for both stages without embedding an address.
+
+Fork tests reused across stages must accept `V4HOOK_HOOK_ADDRESS` when present and otherwise use
+`V4HOOK_PREDICTED_ADDRESS`. They may skip only when neither is present in an ordinary local run.
+With either lifecycle address present, missing stage inputs must fail rather than skip. Verify the
+configured simulation reports nonzero executed tests and zero unexpected skips.
 
 Do not point swap-quadrant or postcondition steps at ordinary unit tests merely because the scaffold
 contains placeholders. Those steps must inspect the hook deployed by the plan on the pinned Anvil

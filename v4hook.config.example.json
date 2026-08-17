@@ -21,7 +21,10 @@
     "unit": ["forge", "test", "--match-path", "test/unit/**"],
     "fuzz": ["forge", "test", "--match-path", "test/fuzz/**", "--fuzz-runs", "1000"],
     "invariant": ["forge", "test", "--match-path", "test/invariant/**"],
-    "staticAnalysis": ["slither", ".", "--filter-paths", "vendor/", "--fail-high"]
+    "staticAnalysis": ["slither", ".", "--filter-paths", "vendor/", "--fail-high"],
+    "minimumFuzzRuns": 1000,
+    "minimumInvariantRuns": 256,
+    "minimumInvariantDepth": 500
   },
   "simulation": {
     "maxForkBlockDrift": 512,
@@ -33,7 +36,8 @@
       },
       {
         "kind": "pool",
-        "command": ["forge", "script", "script/SimulatePool.s.sol:SimulatePool", "--rpc-url", "{anvilRpc}", "--broadcast", "--unlocked", "--sender", "{anvilSender}"]
+        "command": ["forge", "script", "script/SimulatePool.s.sol:SimulatePool", "--rpc-url", "{anvilRpc}", "--broadcast", "--unlocked", "--sender", "{anvilSender}"],
+        "requiredAuthorities": {}
       },
       {
         "kind": "quadrants",
@@ -46,7 +50,8 @@
     ]
   },
   "deployment": {
-    "script": "script/DeployHook.s.sol:DeployHook"
+    "script": "script/DeployHook.s.sol:DeployHook",
+    "requiredAuthorities": {}
   },
   "pool": {
     "currency0": "0x0000000000000000000000000000000000000001",
@@ -62,6 +67,7 @@
     "recipient": "0x0000000000000000000000000000000000000003",
     "hookData": "0x",
     "launchScript": "script/LaunchPool.s.sol:LaunchPool",
+    "launchAuthorities": {},
     "simulationSteps": [
       {
         "kind": "pool",
