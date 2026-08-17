@@ -325,6 +325,7 @@ pub fn up(input: &DevnetUpInput<'_>) -> Result<DevnetStatus> {
             accounts: Some(accounts),
             block_time_seconds,
             log_path: Some(log_path.clone()),
+            persistent: true,
         },
     )?;
     let evidence = execute_deployment_simulation(&context, &anvil.rpc_url)?;

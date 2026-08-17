@@ -243,6 +243,9 @@ local RPC URL, chain and fork identity, hook ABI and address, plan-bound Uniswap
 pool configuration, scenario names and account addresses. It never contains private keys or the
 Anvil mnemonic.
 
+Persistent devnets require a Unix-like host. The CLI crosses a real daemon boundary before it
+returns, so Anvil survives both an interactive shell exit and a one-shot coding-agent command.
+
 The CLI verifies a process-command fingerprint, fork block hash, on-chain ownership marker and hook
 runtime before status, reset, export or scenario operations. `devnet down` refuses to signal a PID
 that does not match the recorded Anvil process. `reset` restores the pinned fork and repeats the

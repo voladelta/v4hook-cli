@@ -84,6 +84,9 @@ browser apps and deterministic multi-wallet scenarios, not an alternative deploy
 
 - `devnet up` must reuse the plan's exact pinned fork and all four simulation stages before it
   detaches Anvil.
+- Persistent Anvil must cross a real daemon boundary on Unix. Dropping a Rust `Child` is not enough:
+  it can survive an interactive shell but be killed when a one-shot agent command exits. Verify
+  persistence from a separate command process.
 - Keep the RPC bound to `127.0.0.1`. Export addresses, ABI and disposable account addresses, never
   the mnemonic or private keys.
 - Treat the unlocked local RPC as browser-accessible disposable state. Stop it when unused and

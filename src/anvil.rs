@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::Read,
     net::TcpListener,
     path::{Path, PathBuf},
@@ -18,31 +18,42 @@ pub const ANVIL_DEFAULT_SENDER: &str = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb922
 pub struct AnvilHandle {
     pub rpc_url: String,
     pub sender: String,
-    child: Option<Child>,
+    process: Option<OwnedAnvilProcess>,
+}
+
+enum OwnedAnvilProcess {
+    Child(Child),
+    Daemon(u32),
 }
 
 impl AnvilHandle {
     pub fn pid(&self) -> Result<u32> {
-        self.child
-            .as_ref()
-            .map(Child::id)
-            .context("Anvil process is not owned by this handle")
+        match self.process.as_ref() {
+            Some(OwnedAnvilProcess::Child(child)) => Ok(child.id()),
+            Some(OwnedAnvilProcess::Daemon(pid)) => Ok(*pid),
+            None => bail!("Anvil process is not owned by this handle"),
+        }
     }
 
     pub fn detach(&mut self) -> Result<u32> {
-        let child = self
-            .child
+        let process = self
+            .process
             .take()
             .context("Anvil process is not owned by this handle")?;
-        let pid = child.id();
-        drop(child);
-        Ok(pid)
+        match process {
+            OwnedAnvilProcess::Child(child) => Ok(child.id()),
+            OwnedAnvilProcess::Daemon(pid) => Ok(pid),
+        }
     }
 
     pub fn stop(&mut self) {
-        if let Some(mut child) = self.child.take() {
-            let _ = child.kill();
-            let _ = child.wait();
+        match self.process.take() {
+            Some(OwnedAnvilProcess::Child(mut child)) => {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            Some(OwnedAnvilProcess::Daemon(pid)) => terminate_daemon(pid),
+            None => {}
         }
     }
 }
@@ -53,6 +64,7 @@ pub struct AnvilStartOptions {
     pub accounts: Option<u16>,
     pub block_time_seconds: Option<u64>,
     pub log_path: Option<PathBuf>,
+    pub persistent: bool,
 }
 
 impl Drop for AnvilHandle {
@@ -109,30 +121,39 @@ fn allocate_port(requested: Option<u16>) -> Result<u16> {
         .port())
 }
 
+fn open_private_file(path: &Path, label: &str) -> Result<File> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("create {label} directory {}", parent.display()))?;
+    }
+    if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+        bail!("refusing to write {label} through a symbolic link");
+    }
+    let file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(path)
+        .with_context(|| format!("create {label} {}", path.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(fs::Permissions::from_mode(0o600))
+            .with_context(|| format!("protect {label} {}", path.display()))?;
+    }
+    Ok(file)
+}
+
+fn open_private_log(path: &Path) -> Result<(File, File)> {
+    let stdout = open_private_file(path, "Anvil log")?;
+    let stderr = stdout
+        .try_clone()
+        .with_context(|| format!("clone Anvil log {}", path.display()))?;
+    Ok((stdout, stderr))
+}
+
 fn configure_output(process: &mut Command, log_path: Option<&Path>) -> Result<()> {
     if let Some(log_path) = log_path {
-        if let Some(parent) = log_path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("create Anvil log directory {}", parent.display()))?;
-        }
-        if fs::symlink_metadata(log_path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-            bail!("refusing to write Anvil log through a symbolic link");
-        }
-        let stdout = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(log_path)
-            .with_context(|| format!("create Anvil log {}", log_path.display()))?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            stdout
-                .set_permissions(fs::Permissions::from_mode(0o600))
-                .with_context(|| format!("protect Anvil log {}", log_path.display()))?;
-        }
-        let stderr = stdout
-            .try_clone()
-            .with_context(|| format!("clone Anvil log {}", log_path.display()))?;
+        let (stdout, stderr) = open_private_log(log_path)?;
         process
             .stdout(Stdio::from(stdout))
             .stderr(Stdio::from(stderr));
@@ -161,6 +182,112 @@ fn capture_output(child: &mut Child) -> Arc<Mutex<String>> {
         });
     }
     output
+}
+
+fn terminate_daemon(pid: u32) {
+    let _ = Command::new("kill")
+        .args(["-TERM", &pid.to_string()])
+        .status();
+    for _ in 0..50 {
+        let running = Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success());
+        if !running {
+            return;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+#[cfg(unix)]
+pub fn daemonize_anvil(
+    pid_file: &Path,
+    log_file: &Path,
+    working_directory: &Path,
+    anvil_args: &[String],
+) -> Result<()> {
+    use daemonize::Daemonize;
+    use std::os::unix::process::CommandExt;
+
+    let pid_reservation = open_private_file(pid_file, "Anvil PID file")?;
+    drop(pid_reservation);
+    let (stdout, stderr) = open_private_log(log_file)?;
+    if let Err(error) = Daemonize::new()
+        .pid_file(pid_file)
+        .working_directory(working_directory)
+        .umask(0o077)
+        .stdout(stdout)
+        .stderr(stderr)
+        .start()
+    {
+        let _ = fs::remove_file(pid_file);
+        return Err(error).context("daemonize Anvil");
+    }
+    let error = Command::new("anvil").args(anvil_args).exec();
+    bail!("start daemonized Anvil: {error}")
+}
+
+#[cfg(not(unix))]
+pub fn daemonize_anvil(
+    _pid_file: &Path,
+    _log_file: &Path,
+    _working_directory: &Path,
+    _anvil_args: &[String],
+) -> Result<()> {
+    bail!("persistent Anvil devnets require a Unix-like operating system")
+}
+
+fn spawn_daemonized_anvil(
+    args: &[String],
+    cwd: &Path,
+    target_rpc_env_name: &str,
+    log_path: &Path,
+) -> Result<u32> {
+    let pid_file = log_path.with_extension("pid");
+    if fs::symlink_metadata(&pid_file).is_ok() {
+        bail!(
+            "Anvil daemon PID file already exists: {}",
+            pid_file.display()
+        );
+    }
+    let output = Command::new(std::env::current_exe().context("resolve v4hook executable")?)
+        .arg("__devnet-anvil")
+        .arg("--pid-file")
+        .arg(&pid_file)
+        .arg("--log-file")
+        .arg(log_path)
+        .arg("--working-directory")
+        .arg(cwd)
+        .arg("--")
+        .args(args)
+        .current_dir(cwd)
+        .env_remove(target_rpc_env_name)
+        .stdin(Stdio::null())
+        .output()
+        .context("start Anvil daemon launcher")?;
+    if !output.status.success() {
+        let _ = fs::remove_file(&pid_file);
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        if detail.is_empty() {
+            bail!("Anvil daemon launcher failed");
+        }
+        bail!("Anvil daemon launcher failed: {detail}");
+    }
+    for _ in 0..100 {
+        if let Ok(raw) = fs::read_to_string(&pid_file)
+            && let Ok(pid) = raw.trim().parse::<u32>()
+        {
+            fs::remove_file(&pid_file)
+                .with_context(|| format!("remove Anvil PID file {}", pid_file.display()))?;
+            return Ok(pid);
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    let _ = fs::remove_file(&pid_file);
+    bail!("Anvil daemon did not publish its PID")
 }
 
 fn verify_fork(
@@ -231,27 +358,50 @@ pub fn start_anvil_with_options(
     if let Some(block_time) = options.block_time_seconds {
         args.extend(["--block-time".to_owned(), block_time.to_string()]);
     }
-    let mut process = Command::new("anvil");
-    process
-        .args(&args)
-        .current_dir(cwd)
-        .env_remove(target_rpc_env_name)
-        .stdin(Stdio::null());
-    configure_output(&mut process, options.log_path.as_deref())?;
-    let mut child = process.spawn().context("start Anvil")?;
-    let output = if options.log_path.is_none() {
-        capture_output(&mut child)
+    let (process, output) = if options.persistent {
+        let log_path = options
+            .log_path
+            .as_deref()
+            .context("persistent Anvil requires a log path")?;
+        let pid = spawn_daemonized_anvil(&args, cwd, target_rpc_env_name, log_path)?;
+        (
+            OwnedAnvilProcess::Daemon(pid),
+            Arc::new(Mutex::new(String::new())),
+        )
     } else {
-        Arc::new(Mutex::new(String::new()))
+        let mut command = Command::new("anvil");
+        command
+            .args(&args)
+            .current_dir(cwd)
+            .env_remove(target_rpc_env_name)
+            .stdin(Stdio::null());
+        configure_output(&mut command, options.log_path.as_deref())?;
+        let mut child = command.spawn().context("start Anvil")?;
+        let output = if options.log_path.is_none() {
+            capture_output(&mut child)
+        } else {
+            Arc::new(Mutex::new(String::new()))
+        };
+        (OwnedAnvilProcess::Child(child), output)
     };
     let rpc_url = format!("http://127.0.0.1:{port}");
+    let mut handle = AnvilHandle {
+        rpc_url: rpc_url.clone(),
+        sender: ANVIL_DEFAULT_SENDER.to_owned(),
+        process: Some(process),
+    };
     if let Err(error) = wait_for_rpc(&rpc_url, Duration::from_secs(20)) {
-        let _ = child.kill();
-        let _ = child.wait();
-        let output = output
+        handle.stop();
+        let mut output = output
             .lock()
             .map(|value| value.trim().to_owned())
             .unwrap_or_default();
+        if output.is_empty()
+            && let Some(log_path) = &options.log_path
+        {
+            output = fs::read_to_string(log_path).unwrap_or_default();
+            output.truncate(output.trim_end().len());
+        }
         let output = output.replace(target_rpc_url, "[REDACTED RPC URL]");
         let context = if output.is_empty() {
             "failed to start Anvil".to_owned()
@@ -266,15 +416,10 @@ pub fn start_anvil_with_options(
         fork_block_number,
         expected_chain_id,
     ) {
-        let _ = child.kill();
-        let _ = child.wait();
+        handle.stop();
         return Err(error).context("failed to configure Anvil fork");
     }
-    Ok(AnvilHandle {
-        rpc_url,
-        sender: ANVIL_DEFAULT_SENDER.to_owned(),
-        child: Some(child),
-    })
+    Ok(handle)
 }
 
 enum Stream {
@@ -361,6 +506,7 @@ mod tests {
                 accounts: Some(100),
                 block_time_seconds: None,
                 log_path: Some(log_path.clone()),
+                persistent: false,
             },
         )
         .unwrap();

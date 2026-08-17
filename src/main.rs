@@ -59,6 +59,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(name = "__devnet-anvil", hide = true)]
+    DaemonizeAnvil {
+        #[arg(long)]
+        pid_file: PathBuf,
+        #[arg(long)]
+        log_file: PathBuf,
+        #[arg(long)]
+        working_directory: PathBuf,
+        #[arg(last = true, required = true)]
+        anvil_args: Vec<String>,
+    },
     /// Copy the bundled, pinned Uniswap v4 hook scaffold.
     Init { directory: PathBuf },
     /// Update a user project from the scaffold in this CLI version.
@@ -289,6 +300,14 @@ fn run() -> Result<i32> {
     let cli = Cli::parse();
     let force_json = cli.json;
     match cli.command {
+        Command::DaemonizeAnvil {
+            pid_file,
+            log_file,
+            working_directory,
+            anvil_args,
+        } => {
+            anvil::daemonize_anvil(&pid_file, &log_file, &working_directory, &anvil_args)?;
+        }
         Command::Init { directory } => {
             let result = initialize_project(&directory)?;
             print_output(
