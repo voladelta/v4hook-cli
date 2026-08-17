@@ -63,11 +63,11 @@ pub fn doctor(config: Option<&LoadedConfig>) -> Value {
         "tools": tools,
         "missing": missing,
         "issues": issues,
-        "projectRoot": config.map(|value| value.project_root.clone()),
+        "projectRoot": config.map(|value| &value.project_root),
         "rpcConfigured": rpc_configured,
-        "staticAnalysisCommand": config.map(|value| value.value.checks.static_analysis.clone()),
-        "slitherPolicy": config.map(|value| value.value.checks.slither_policy.clone()),
-        "gasSnapshotCommand": config.map(|value| value.value.checks.gas_snapshot.clone()),
-        "codeSizePolicy": config.map(|value| value.value.checks.code_size.clone()),
+        "staticAnalysisCommand": config.map(|value| &value.value.checks.static_analysis),
+        "slitherPolicy": config.map(|value| &value.value.checks.slither_policy),
+        "gasSnapshotCommand": config.map(|value| &value.value.checks.gas_snapshot),
+        "codeSizePolicy": config.map(|value| &value.value.checks.code_size),
     })
 }

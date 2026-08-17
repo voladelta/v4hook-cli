@@ -98,10 +98,7 @@ fn parse_findings(output: &str, allowed: &BTreeSet<String>) -> Result<Vec<Slithe
             "impact": impact.as_str(),
             "locations": locations,
         }))?);
-        let (path, lines) = locations
-            .first()
-            .cloned()
-            .unwrap_or_else(|| ("<unknown>".to_owned(), Vec::new()));
+        let (path, lines) = locations[0].clone();
         findings.insert(
             fingerprint.clone(),
             SlitherFinding {

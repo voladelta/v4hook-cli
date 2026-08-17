@@ -312,11 +312,15 @@ fn validate_devnet(devnet: &mut DevnetConfig) -> Result<()> {
                 &format!("devnet scenario {} allowedTargets[{index}]", scenario.name),
             )?;
         }
-        let mut targets = verification.allowed_targets.iter().collect::<BTreeSet<_>>();
-        if targets.len() != verification.allowed_targets.len() {
+        if verification
+            .allowed_targets
+            .iter()
+            .collect::<BTreeSet<_>>()
+            .len()
+            != verification.allowed_targets.len()
+        {
             bail!("devnet scenario allowedTargets must be unique");
         }
-        targets.clear();
         for (index, event) in verification.required_events.iter_mut().enumerate() {
             normalize_scenario_address(
                 &mut event.address,
@@ -487,14 +491,13 @@ fn glob_regex(pattern: &str) -> Regex {
 }
 
 fn any_matching_file(root: &Path, pattern: &str) -> bool {
-    if !pattern.contains(['*', '?']) {
+    let Some(wildcard) = pattern.find(['*', '?']) else {
         return root.join(pattern).is_file();
-    }
-    let wildcard = pattern.find(['*', '?']).unwrap_or(0);
+    };
     let prefix = &pattern[..wildcard];
     let base = prefix
         .rfind('/')
-        .map_or(root.to_path_buf(), |index| root.join(&prefix[..index]));
+        .map_or_else(|| root.to_path_buf(), |index| root.join(&prefix[..index]));
     let matcher = glob_regex(pattern);
     let mut pending = vec![base];
     while let Some(directory) = pending.pop() {
@@ -534,11 +537,12 @@ fn command_match_path(command: &[String]) -> Option<&str> {
 fn gas_snapshot_path(command: &[String]) -> Option<&str> {
     for (index, argument) in command.iter().enumerate() {
         if argument == "--check" {
-            return command
-                .get(index + 1)
-                .filter(|value| !value.starts_with('-'))
-                .map(String::as_str)
-                .or(Some(".gas-snapshot"));
+            return Some(
+                command
+                    .get(index + 1)
+                    .filter(|value| !value.starts_with('-'))
+                    .map_or(".gas-snapshot", String::as_str),
+            );
         }
         if let Some(value) = argument.strip_prefix("--check=") {
             return Some(value);
@@ -548,7 +552,7 @@ fn gas_snapshot_path(command: &[String]) -> Option<&str> {
 }
 
 fn script_source(target: &str) -> Option<&str> {
-    let source = target.split(':').next().unwrap_or(target);
+    let source = target.split_once(':').map_or(target, |(source, _)| source);
     Path::new(source)
         .extension()
         .is_some_and(|extension| extension.eq_ignore_ascii_case("sol"))

@@ -90,7 +90,7 @@ fn process_command(pid: u32) -> Result<Option<String>> {
 fn has_argument(parts: &[&str], long: &str, short: &str, value: &str) -> bool {
     parts
         .windows(2)
-        .any(|pair| (pair[0] == long || pair[0] == short) && pair.get(1).copied() == Some(value))
+        .any(|pair| (pair[0] == long || pair[0] == short) && pair[1] == value)
         || parts.iter().any(|part| *part == format!("{long}={value}"))
 }
 
@@ -950,7 +950,7 @@ pub fn run_scenario(input: &DevnetScenarioInput<'_>) -> Result<DevnetScenarioEvi
         schema_version: "v4hook.devnet-scenario-evidence.v2".to_owned(),
         created_at: now_iso(),
         plan_digest: state.plan_digest,
-        scenario: scenario.name.clone(),
+        scenario: scenario.name,
         seed: input.seed,
         accounts: state.accounts.len(),
         start_block,
@@ -1281,7 +1281,7 @@ mod tests {
             chain_id: 31_337,
             fork_block_number: 1,
             fork_block_hash: "0x00".to_owned(),
-            hook_address: manifest.hook.address.clone(),
+            hook_address: manifest.hook.address,
             deployed_runtime_code_hash: "0x00".to_owned(),
             marker_address: "0x0000000000000000000000000000000000000002".to_owned(),
             marker_code: "0x00".to_owned(),
