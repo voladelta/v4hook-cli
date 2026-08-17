@@ -112,6 +112,23 @@ fn reject_conflicting_options(extra_args: &[String], options: &AnvilStartOptions
     Ok(())
 }
 
+fn ensure_quiet_output(args: &mut Vec<String>) {
+    let quiet = args.iter().any(|argument| {
+        argument == "--quiet"
+            || argument == "-q"
+            || argument == "--silent"
+            || argument.starts_with("--quiet=")
+    });
+    if !quiet {
+        args.push("--quiet".to_owned());
+    }
+}
+
+fn contains_account_secrets(output: &str) -> bool {
+    let normalized = output.to_ascii_lowercase();
+    normalized.contains("private key") || normalized.contains("mnemonic")
+}
+
 fn allocate_port(requested: Option<u16>) -> Result<u16> {
     let listener = TcpListener::bind(("127.0.0.1", requested.unwrap_or(0)))
         .context("allocate local Anvil port")?;
@@ -358,6 +375,7 @@ pub fn start_anvil_with_options(
     if let Some(block_time) = options.block_time_seconds {
         args.extend(["--block-time".to_owned(), block_time.to_string()]);
     }
+    ensure_quiet_output(&mut args);
     let (process, output) = if options.persistent {
         let log_path = options
             .log_path
@@ -402,13 +420,29 @@ pub fn start_anvil_with_options(
             output = fs::read_to_string(log_path).unwrap_or_default();
             output.truncate(output.trim_end().len());
         }
-        let output = output.replace(target_rpc_url, "[REDACTED RPC URL]");
+        if contains_account_secrets(&output) {
+            if let Some(log_path) = &options.log_path {
+                let _ = fs::remove_file(log_path);
+            }
+            "Anvil emitted sensitive account material; output was suppressed"
+                .clone_into(&mut output);
+        } else {
+            output = output.replace(target_rpc_url, "[REDACTED RPC URL]");
+        }
         let context = if output.is_empty() {
             "failed to start Anvil".to_owned()
         } else {
             format!("failed to start Anvil: {output}")
         };
         return Err(error).context(context);
+    }
+    if let Some(log_path) = &options.log_path {
+        let log = fs::read_to_string(log_path).unwrap_or_default();
+        if contains_account_secrets(&log) {
+            handle.stop();
+            let _ = fs::remove_file(log_path);
+            bail!("Anvil emitted sensitive account material; stopped Anvil and removed its log");
+        }
     }
     if let Err(error) = verify_fork(
         &rpc_url,
@@ -467,6 +501,27 @@ mod tests {
     }
 
     #[test]
+    fn adds_quiet_output_without_overriding_an_explicit_choice() {
+        let mut default = vec!["--code-size-limit".to_owned(), "40000".to_owned()];
+        ensure_quiet_output(&mut default);
+        assert_eq!(default.last().map(String::as_str), Some("--quiet"));
+
+        for flag in ["--quiet", "-q", "--silent"] {
+            let mut explicit = vec![flag.to_owned()];
+            ensure_quiet_output(&mut explicit);
+            assert_eq!(explicit, [flag]);
+        }
+    }
+
+    #[test]
+    fn detects_anvil_account_secret_banners() {
+        assert!(contains_account_secrets("Private Keys\n(0) 0xsecret"));
+        assert!(contains_account_secrets("Private Key: 0xsecret"));
+        assert!(contains_account_secrets("Mnemonic: test test test"));
+        assert!(!contains_account_secrets("eth_chainId\neth_blockNumber"));
+    }
+
+    #[test]
     #[ignore = "requires Foundry Anvil and unrestricted localhost sockets"]
     fn detached_fork_survives_with_one_hundred_accounts() {
         let source_port = allocate_port(None).unwrap();
@@ -515,6 +570,8 @@ mod tests {
         let pid = fork.detach().unwrap();
         assert_eq!(chain_id(&rpc_url).unwrap(), 31337);
         assert_eq!(block_number(&rpc_url).unwrap(), 0);
+        let log = fs::read_to_string(&log_path).unwrap();
+        assert!(!contains_account_secrets(&log));
 
         let status = Command::new("kill")
             .args(["-TERM", &pid.to_string()])

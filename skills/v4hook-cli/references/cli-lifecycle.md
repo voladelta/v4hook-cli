@@ -82,6 +82,12 @@ local fixture or use an ordinary unit test as a proxy.
 Use `v4hook devnet` only after a deployment plan exists. It is a persistent development surface for
 browser apps and deterministic multi-wallet scenarios, not an alternative deployment proof.
 
+After the implementation's required full check and adversarial review are green, keep later devnet
+harness repair loops focused: run the narrow failing test, commit the clean repair, create a fresh
+plan, then run `devnet up`. Do not blindly insert another standalone full check or `simulate` between
+those steps: `plan` reruns configured checks and `devnet up` reruns all four simulation stages.
+Run standalone `simulate` when its separate one-shot evidence is itself required.
+
 - `devnet up` must reuse the plan's exact pinned fork and all four simulation stages before it
   detaches Anvil.
 - Persistent Anvil must cross a real daemon boundary on Unix. Dropping a Rust `Child` is not enough:
@@ -89,10 +95,25 @@ browser apps and deterministic multi-wallet scenarios, not an alternative deploy
   persistence from a separate command process.
 - Keep the RPC bound to `127.0.0.1`. Export addresses, ABI and disposable account addresses, never
   the mnemonic or private keys.
+- Require secret-free process artifacts, not merely a web-safe manifest. Current `v4hook` releases
+  start Anvil quietly and fail closed if a key or mnemonic banner reaches the runtime log. With an
+  older CLI, add `--quiet` to `simulation.anvilArgs`, inspect the log without printing its contents,
+  and remove any affected disposable log before continuing.
+- Choose bootstrap authorities from the requested generated account set. Reserve the browser
+  account before bootstrap, record its nonce and balances, and require the exported account count
+  to equal the requested count exactly; an auto-impersonated extra authority is a failed setup.
 - Treat the unlocked local RPC as browser-accessible disposable state. Stop it when unused and
   narrow Anvil's allowed origin in `simulation.anvilArgs` when the app has a stable origin.
 - Use project-configured scenario commands for hook-specific Universal Router, Permit2 and
   `hookData` behavior. Record a seed and evidence so failures reproduce.
+- For dependent broadcast calls, confirm receipts sequentially and give price/slippage deadlines a
+  bounded future window; `block.timestamp` itself can expire between simulation and broadcast.
+- Use strict interior v4 price limits (`MIN_SQRT_PRICE + 1` and `MAX_SQRT_PRICE - 1`). For
+  exact-output return-delta hooks, derive any gross witness from a trusted quoter or by decoding the
+  hook's atomic wrapped rejection; never coarse-brute-force candidates or swallow reverts.
+- Simulate each browser/scenario write, then apply a documented bounded gas buffer when concurrent
+  stateful transactions can invalidate a just-in-time estimate. Require successful receipts,
+  balance deltas and hook events for every wallet; a submitted hash is not success evidence.
 - Use Anvil manual mining when exact same-block batching and ordering matter; use interval mining
   for browser confirmation behavior.
 - `devnet status`, `reset`, `export`, `run` and `down` must verify process ownership and devnet chain

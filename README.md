@@ -241,7 +241,12 @@ accounts by default. It writes private process state to `.v4hook/devnet.json`, A
 `.v4hook/devnet/`, and a web-safe manifest to `.v4hook/devnet-web.json`. The manifest contains the
 local RPC URL, chain and fork identity, hook ABI and address, plan-bound Uniswap addresses, optional
 pool configuration, scenario names and account addresses. It never contains private keys or the
-Anvil mnemonic.
+Anvil mnemonic. The CLI starts Anvil in quiet mode even when `simulation.anvilArgs` omits the flag.
+If Anvil still emits a private-key or mnemonic banner, `devnet up` stops it, removes the affected
+log and fails instead of retaining sensitive account material.
+
+`devnet up` already reruns the complete plan-bound simulation. Do not run `v4hook simulate`
+immediately before it unless you also need a separate one-shot evidence file.
 
 Persistent devnets require a Unix-like host. The CLI crosses a real daemon boundary before it
 returns, so Anvil survives both an interactive shell exit and a one-shot coding-agent command.

@@ -58,6 +58,11 @@ other secrets only in ignored local state or environment variables.
   in check evidence.
 - Never catch an expected revert inside `broadcast` or `startBroadcast`; Foundry records calls at
   that depth as transactions. Move the probe outside broadcast or use a read-only quoter.
+- Confirm dependent broadcast receipts sequentially and use a bounded future deadline for
+  price-sensitive calls; an exact `block.timestamp` deadline can expire during broadcast.
+- Use strict interior v4 price limits. When an exact-output return-delta hook requires a gross
+  witness, derive it from an authoritative quote or decode the hook's atomic wrapped rejection
+  instead of guessing candidates or swallowing reverts.
 - If `forge lint` leaves ABI-only artifacts and a later Foundry test reports no tests, run
   `forge build --force` and rerun the original gate. Add `--force` to a configured test command only
   when the cache failure is reproduced; still verify that matching tests executed.

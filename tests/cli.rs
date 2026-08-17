@@ -164,7 +164,10 @@ fn init_keeps_captured_stdout_machine_readable() {
     assert!(agent_instructions.contains("v4-security-foundations"));
     let metadata = fs::read_to_string(destination.0.join(".v4hook.toml"))
         .expect("scaffold includes template metadata");
-    assert!(metadata.contains("created-with-cli = \"0.2.0\""));
+    assert!(metadata.contains(&format!(
+        "created-with-cli = \"{}\"",
+        env!("CARGO_PKG_VERSION")
+    )));
     assert!(metadata.contains("version = \"1.3.0\""));
     assert!(destination.0.join(".env.example").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());
