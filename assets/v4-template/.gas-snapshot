@@ -1,0 +1,8 @@
+CounterTest:testCounterHooks() (gas: 227657)
+CounterTest:testLiquidityHooks() (gas: 179877)
+EasyPosmTest:test_burn() (gas: 400756)
+EasyPosmTest:test_decreaseLiquidity() (gas: 500414)
+EasyPosmTest:test_increaseLiquidity() (gas: 515698)
+EasyPosmTest:test_increaseLiquidityNative() (gas: 471914)
+EasyPosmTest:test_mintLiquidity() (gas: 443626)
+EasyPosmTest:test_mintLiquidityNative() (gas: 392737)

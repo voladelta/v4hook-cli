@@ -30,6 +30,7 @@ Record at least:
 | Fuzz | runs per test and matched test count |
 | Invariant | runs, depth, fail-on-revert, calls, reverts and discards |
 | Static analysis | detector set, project-path filters and finding triage |
+| Size/gas | runtime and initcode ceilings, committed snapshot and reviewed deltas |
 | Fork simulation | stage environment, executed test count and postconditions |
 
 Reject any unapproved reduction, including adding explicit values below inherited defaults,
@@ -59,8 +60,10 @@ explicitly chose the same address and the active configuration proves that choic
 
 Keep project detectors visible. Filter pinned dependency paths, then triage project findings by
 detector, exact source location, impact, and rationale. Do not silence a detector class globally to
-hide a known project finding. Preserve fail-closed handling for the severities required by project
-policy.
+hide a known project finding. Require the structured fingerprint to match the current source and
+reject stale allowances. Preserve fail-closed handling for the severities required by project
+policy. Compare the final code-size evidence and committed gas snapshot against the original design;
+an unexplained budget increase is a must-fix review finding.
 
 ## Finish the second pass
 

@@ -48,8 +48,13 @@ other secrets only in ignored local state or environment variables.
   Preserve the gate, run the remaining commands individually, and report the missing tool.
 - Filter pinned `vendor/` paths from Slither detector output, fail on high-severity project
   findings, and keep an explicit source-location triage for accepted lower-severity false
-  positives. Do not globally exclude a detector class to hide a project finding. Do not ignore
-  dependency pinning or compiler-known-bug review merely because vendor detector noise is filtered.
+  positives. Put dependency directories and exact finding fingerprints in the structured Slither
+  policy. High findings cannot be allowed; moved findings and stale allowances fail. Do not add
+  output, fail, filter, or detector-exclusion flags to the base analyzer command. Do not ignore
+  dependency pinning or compiler-known-bug review merely because pinned dependencies are filtered.
+- Keep `.gas-snapshot` committed and configure only a failing `forge snapshot --check` command.
+  Review any snapshot update as a behavioral budget change. Keep runtime and initcode ceilings at or
+  below the protocol limits and prefer project-specific lower ceilings when architecture permits.
 - Before editing, capture effective Foundry fuzz and invariant values from `forge config --json` and
   the configured gate commands. Never reduce runs, invariant depth, fail-on-revert behavior,
   matching filters, assertions, or executed test counts to make a check pass. Compare the final
@@ -104,6 +109,11 @@ Fork tests reused across stages must accept `V4HOOK_HOOK_ADDRESS` when present a
 `V4HOOK_PREDICTED_ADDRESS`. They may skip only when neither is present in an ordinary local run.
 With either lifecycle address present, missing stage inputs must fail rather than skip. Verify the
 configured simulation reports nonzero executed tests and zero unexpected skips.
+
+For devnet scenarios, write the v1 transaction-hash report to `V4HOOK_SCENARIO_REPORT`. Do not claim
+success from the scenario process itself. Configure exact transaction and sender counts, allowed
+targets, required hook event topics, and reserved account indices; require CLI evidence v2 to prove
+every managed-account transaction in the block range was reported and successfully mined.
 
 Do not point swap-quadrant or postcondition steps at ordinary unit tests merely because the scaffold
 contains placeholders. Those steps must inspect the hook deployed by the plan on the pinned Anvil

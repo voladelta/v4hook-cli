@@ -66,5 +66,8 @@ pub fn doctor(config: Option<&LoadedConfig>) -> Value {
         "projectRoot": config.map(|value| value.project_root.clone()),
         "rpcConfigured": rpc_configured,
         "staticAnalysisCommand": config.map(|value| value.value.checks.static_analysis.clone()),
+        "slitherPolicy": config.map(|value| value.value.checks.slither_policy.clone()),
+        "gasSnapshotCommand": config.map(|value| value.value.checks.gas_snapshot.clone()),
+        "codeSizePolicy": config.map(|value| value.value.checks.code_size.clone()),
     })
 }

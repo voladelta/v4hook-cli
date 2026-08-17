@@ -11,9 +11,11 @@ mod permissions;
 mod plan;
 mod pool;
 mod process;
+mod readiness;
 mod rpc;
 mod scaffold;
 mod simulate;
+mod slither;
 mod template;
 mod util;
 
@@ -36,6 +38,7 @@ use crate::{
     init::initialize_project,
     plan::create_deployment_plan,
     pool::{LaunchPoolInput, SimulatePoolInput, create_pool_plan, launch_pool, simulate_pool},
+    readiness::{ReadinessInput, assess},
     scaffold::{ScaffoldUpdateInput, update_scaffold},
     simulate::simulate_deployment,
     template::{TemplateRefreshInput, refresh_template, seal_template},
@@ -87,10 +90,19 @@ enum Command {
         #[arg(short, long)]
         config: Option<PathBuf>,
     },
-    /// Run format, lint, static analysis, build, unit, fuzz, and invariant gates.
+    /// Run format, lint, structured analysis, build, size, gas, unit, fuzz, and invariant gates.
     Check {
         #[arg(short, long)]
         config: PathBuf,
+    },
+    /// Classify configuration, local, testnet, and external launch readiness from bound evidence.
+    Readiness {
+        #[arg(short, long)]
+        config: PathBuf,
+        #[arg(long)]
+        plan: Option<PathBuf>,
+        #[arg(long)]
+        simulation: Option<PathBuf>,
     },
     /// Build, test, mine the hook address, and write an immutable deployment plan.
     Plan {
@@ -256,6 +268,9 @@ enum DevnetCommand {
     Down {
         #[arg(long, default_value = ".v4hook/devnet.json")]
         state: PathBuf,
+        /// Remove only the digest-verified manifest and state-owned Anvil log after shutdown.
+        #[arg(long)]
+        purge_generated: bool,
     },
 }
 
@@ -396,6 +411,33 @@ fn run() -> Result<i32> {
             let checks = run_check_suite(&config)?;
             let result = json!({"ok": true, "checks": checks});
             print_output(&result, "All configured checks passed.", force_json)?;
+        }
+        Command::Readiness {
+            config,
+            plan,
+            simulation,
+        } => {
+            let config = load_config(config)?;
+            let result = assess(&ReadinessInput {
+                config: &config,
+                plan: plan.as_deref(),
+                simulation: simulation.as_deref(),
+            });
+            let target_ready = if simulation.is_some() {
+                result.testnet.ready
+            } else if plan.is_some() {
+                result.local.ready
+            } else {
+                result.configuration.ready
+            };
+            let human = format!(
+                "Highest established readiness stage: {}.",
+                result.highest_stage
+            );
+            print_output(&result, &human, force_json)?;
+            if !target_ready {
+                return Ok(2);
+            }
         }
         Command::Plan { config, output } => {
             let plan = create_deployment_plan(&load_config(config)?)?;
@@ -589,15 +631,22 @@ fn run() -> Result<i32> {
                     force_json,
                 )?;
             }
-            DevnetCommand::Down { state } => {
-                let stopped = devnet::down(&state)?;
-                let result = json!({"ok": true, "stopped": stopped});
-                let human = if stopped {
+            DevnetCommand::Down {
+                state,
+                purge_generated,
+            } => {
+                let result = devnet::down(&state, purge_generated)?;
+                let human = if result.stopped {
                     "Stopped the devnet."
                 } else {
                     "Removed stale devnet state; no process was running."
                 };
-                print_output(&result, human, force_json)?;
+                let output = json!({
+                    "ok": true,
+                    "stopped": result.stopped,
+                    "removed": result.removed,
+                });
+                print_output(&output, human, force_json)?;
             }
         },
     }

@@ -42,7 +42,13 @@ Do not install skills globally or commit downloaded skill directories unless the
 - For browser-app or multi-wallet testing, use `v4hook devnet` from an immutable deployment plan.
   Keep its RPC localhost-only. Implement hook-specific traffic as deterministic configured
   scenarios through the intended Universal Router and Permit2 integration, and never expose Anvil
-  mnemonics or private keys.
+  mnemonics or private keys. Write the transaction-hash report requested by
+  `V4HOOK_SCENARIO_REPORT`; let the CLI independently verify receipts, senders, targets, events and
+  reserved accounts.
+- Maintain an operational ledger for every long-lived PID, port, launch-agent label, temporary
+  repository and generated evidence path created during the task. At handoff, either identify each
+  intentionally running resource or stop it and use `v4hook devnet down --purge-generated` for
+  state-owned artifacts. Never leave an undeclared local service behind.
 
 ## Verify changes
 
@@ -54,4 +60,7 @@ forge build
 forge test
 ```
 
-Run the configured v4hook checks and fork simulation when the change affects deployment behavior. A passing local workflow is necessary evidence, not a security audit or permission to deploy.
+Run the configured v4hook checks and fork simulation when the change affects deployment behavior.
+The configured Slither fingerprint policy, committed gas snapshot and code-size limits are required
+gates. Use `v4hook readiness` to classify the strongest evidence-backed stage. A passing local
+workflow is necessary evidence, not a security audit or permission to deploy.

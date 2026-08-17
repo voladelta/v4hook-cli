@@ -27,7 +27,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install slither-analyzer
 ```
 
-Run the configured executable:
+Run the configured executable directly for investigation:
 
 ```sh
 slither . --filter-paths 'vendor/' --fail-high
@@ -39,9 +39,14 @@ Or run a one-off analysis without installing Slither:
 uvx --from slither-analyzer slither . --filter-paths 'vendor/' --fail-high
 ```
 
-Do not replace Slither with `forge lint`; run both when configured. Fix actionable findings and
-triage accepted false positives. Rerun the full project gates before describing the hook as locally
-ready.
+`v4hook check` owns the authoritative Slither JSON and severity flags. Configure dependency paths
+and exact accepted-finding fingerprints under `checks.slitherPolicy`; do not add detector
+exclusions to the command. High findings always fail and stale accepted-finding fingerprints fail.
+Do not replace Slither with `forge lint`.
+
+The scaffold also commits `.gas-snapshot`. `v4hook check` enforces it with `forge snapshot --check`
+and enforces the configured runtime and initcode limits. Regenerate the snapshot only after
+reviewing an intentional gas change.
 
 ## Use a coding agent
 
@@ -115,6 +120,9 @@ Treat `v4hook check` as a repair loop. Resolve every locally actionable source, 
 configuration, test and analyzer failure, then rerun the complete check. Testnet readiness also
 requires finalized addresses and launch inputs, a clean plan, and passing pinned-fork simulation.
 An external audit and explicit live authorization remain separate gates.
+
+Use `v4hook readiness` with the config, plan and simulation evidence to obtain a machine-readable
+stage report. The command never converts a local declaration into independent audit evidence.
 
 ## Target Robinhood Chain
 

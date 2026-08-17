@@ -21,7 +21,18 @@
     "unit": ["forge", "test", "--match-path", "test/unit/**"],
     "fuzz": ["forge", "test", "--match-path", "test/fuzz/**", "--fuzz-runs", "1000"],
     "invariant": ["forge", "test", "--match-path", "test/invariant/**"],
-    "staticAnalysis": ["slither", ".", "--filter-paths", "vendor/", "--fail-high"],
+    "staticAnalysis": ["slither", "."],
+    "slitherPolicy": {
+      "failOn": "high",
+      "requireTriageOn": "low",
+      "dependencyPaths": ["vendor/"],
+      "allowedFindings": []
+    },
+    "gasSnapshot": ["forge", "snapshot", "--check", ".gas-snapshot", "--tolerance", "5"],
+    "codeSize": {
+      "maxRuntimeBytes": 24576,
+      "maxInitCodeBytes": 49152
+    },
     "minimumFuzzRuns": 1000,
     "minimumInvariantRuns": 256,
     "minimumInvariantDepth": 500

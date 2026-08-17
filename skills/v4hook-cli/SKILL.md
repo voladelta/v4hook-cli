@@ -115,7 +115,9 @@ is still a weakened gate.
 
 Run the narrowest relevant test first. Then run the project gates proportionate to the change.
 For a completed hook implementation, finish with the configured format, build, unit, fuzz,
-invariant, and static-analysis checks. Ensure every configured Foundry filter executes real tests.
+invariant, structured Slither, code-size, and committed gas-snapshot checks. Ensure every configured
+Foundry filter executes real tests. Never add Slither output/failure flags or detector exclusions
+to the configured command; let the CLI enforce severity and exact source-bound triage fingerprints.
 Treat the first full check as the start of a bounded repair loop:
 
 1. Classify each failure as implementation, configuration, script, test, local tooling, launch
@@ -155,14 +157,25 @@ verifying, or launching a pool. Preserve these invariants:
 When the user needs a persistent browser or multi-wallet environment, use `v4hook devnet` from an
 existing immutable deployment plan. Keep it localhost-only, export only the generated web-safe
 manifest, and put hook-specific Universal Router/Permit2 traffic in deterministic project scenario
-commands. Never expose Anvil mnemonics or private keys, and never describe devnet scenario evidence
-as the mandatory one-shot deployment simulation.
+commands. Require each scenario to write only its transaction-hash report; let the CLI independently
+verify managed-account completeness, receipts, senders, targets, hook events and reserved accounts.
+Never expose Anvil mnemonics or private keys, and never describe devnet scenario evidence as the
+mandatory one-shot deployment simulation.
+
+Maintain an operational ledger throughout long tasks: current commit and plan digest, active
+reproducer, every PID/port/launch-agent label, temporary repository, and generated evidence path.
+At handoff, explicitly retain each requested service or stop it and purge only CLI-verified generated
+artifacts. Do not leave undeclared processes or test repositories behind.
 
 Call a project locally ready only after the repair loop is clean. Call it testnet-ready only when
 sentinels are replaced, roles and broadcast stages are executable, `doctor`, `check`, `plan`, and
 `simulate` pass, code size and gas are reviewed, and the security checklist has no unresolved
 locally actionable item. Never call it launch-ready without the required independent review and
 explicit authority for each live action.
+
+Use `v4hook readiness` with the config and available plan/simulation evidence before reporting a
+stage. Treat its launch-stage external requirements as non-self-attestable; never manufacture audit,
+monitoring, or live-authorization evidence.
 
 ## Report completion
 

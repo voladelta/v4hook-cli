@@ -30,6 +30,22 @@ pub const fn default_minimum_invariant_depth() -> u64 {
     500
 }
 
+pub const fn default_max_runtime_code_size() -> u64 {
+    24_576
+}
+
+pub const fn default_max_init_code_size() -> u64 {
+    49_152
+}
+
+fn default_slither_fail_on() -> SlitherImpact {
+    SlitherImpact::High
+}
+
+fn default_slither_require_triage_on() -> SlitherImpact {
+    SlitherImpact::Low
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum SimulationKind {
@@ -82,6 +98,75 @@ pub struct NetworkConfig {
     pub create2_deployer: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "lowercase")]
+pub enum SlitherImpact {
+    Informational,
+    Low,
+    Medium,
+    High,
+}
+
+impl SlitherImpact {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Informational => "informational",
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SlitherFindingAllowance {
+    pub fingerprint: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SlitherPolicy {
+    #[serde(default = "default_slither_fail_on")]
+    pub fail_on: SlitherImpact,
+    #[serde(default = "default_slither_require_triage_on")]
+    pub require_triage_on: SlitherImpact,
+    #[serde(default)]
+    pub dependency_paths: Vec<String>,
+    #[serde(default)]
+    pub allowed_findings: Vec<SlitherFindingAllowance>,
+}
+
+impl Default for SlitherPolicy {
+    fn default() -> Self {
+        Self {
+            fail_on: default_slither_fail_on(),
+            require_triage_on: default_slither_require_triage_on(),
+            dependency_paths: Vec::new(),
+            allowed_findings: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CodeSizePolicy {
+    #[serde(default = "default_max_runtime_code_size")]
+    pub max_runtime_bytes: u64,
+    #[serde(default = "default_max_init_code_size")]
+    pub max_init_code_bytes: u64,
+}
+
+impl Default for CodeSizePolicy {
+    fn default() -> Self {
+        Self {
+            max_runtime_bytes: default_max_runtime_code_size(),
+            max_init_code_bytes: default_max_init_code_size(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ChecksConfig {
@@ -89,6 +174,12 @@ pub struct ChecksConfig {
     pub fuzz: Vec<String>,
     pub invariant: Vec<String>,
     pub static_analysis: Vec<String>,
+    #[serde(default)]
+    pub slither_policy: SlitherPolicy,
+    #[serde(default)]
+    pub gas_snapshot: Vec<String>,
+    #[serde(default)]
+    pub code_size: CodeSizePolicy,
     #[serde(default = "default_minimum_fuzz_runs")]
     pub minimum_fuzz_runs: u64,
     #[serde(default = "default_minimum_invariant_runs")]
@@ -120,6 +211,26 @@ pub struct DeploymentConfig {
 pub struct DevnetScenario {
     pub name: String,
     pub command: Vec<String>,
+    pub verification: DevnetScenarioVerification,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetRequiredEvent {
+    pub address: String,
+    pub topic0: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetScenarioVerification {
+    pub expected_transactions: u64,
+    pub expected_senders: u64,
+    pub allowed_targets: Vec<String>,
+    #[serde(default)]
+    pub required_events: Vec<DevnetRequiredEvent>,
+    #[serde(default)]
+    pub reserved_account_indices: Vec<u16>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -191,6 +302,40 @@ pub struct CheckEvidence {
     pub stderr_hash: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub test_summary: Option<FoundryTestSummary>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slither_summary: Option<SlitherSummary>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_size_summary: Option<CodeSizeSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SlitherFinding {
+    pub fingerprint: String,
+    pub check: String,
+    pub impact: SlitherImpact,
+    pub confidence: String,
+    pub path: String,
+    pub lines: Vec<u64>,
+    pub allowed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SlitherSummary {
+    pub findings: Vec<SlitherFinding>,
+    pub allowed_findings: u64,
+    pub untriaged_findings: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CodeSizeSummary {
+    pub unit: String,
+    pub runtime: u64,
+    pub runtime_limit: u64,
+    pub init_code: u64,
+    pub init_code_limit: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -432,8 +577,85 @@ pub struct DevnetScenarioEvidence {
     pub stdout_hash: String,
     pub stderr_hash: String,
     pub integrity_passed: bool,
+    pub verification: DevnetScenarioVerificationEvidence,
     pub passed: bool,
     pub digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetScenarioReport {
+    pub schema_version: String,
+    pub transactions: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetTransactionEvidence {
+    pub hash: String,
+    pub sender: String,
+    pub target: String,
+    pub block_number: u64,
+    pub gas_used: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetReservedAccountEvidence {
+    pub index: u16,
+    pub address: String,
+    pub nonce_before: String,
+    pub nonce_after: String,
+    pub balance_before: String,
+    pub balance_after: String,
+    pub unchanged: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetScenarioVerificationEvidence {
+    pub expected_transactions: u64,
+    pub observed_transactions: u64,
+    pub expected_senders: u64,
+    pub observed_senders: u64,
+    pub assertions: Vec<DevnetScenarioAssertion>,
+    pub transactions: Vec<DevnetTransactionEvidence>,
+    pub reserved_accounts: Vec<DevnetReservedAccountEvidence>,
+    pub issues: Vec<String>,
+    pub passed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetScenarioAssertion {
+    pub name: String,
+    pub passed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReadinessStage {
+    pub ready: bool,
+    pub evidence: Vec<String>,
+    pub issues: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReadinessReport {
+    pub schema_version: String,
+    pub highest_stage: String,
+    pub configuration: ReadinessStage,
+    pub local: ReadinessStage,
+    pub testnet: ReadinessStage,
+    pub launch: ReadinessStage,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DevnetDownResult {
+    pub stopped: bool,
+    pub removed: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

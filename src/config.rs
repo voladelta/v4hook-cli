@@ -11,8 +11,8 @@ use regex::Regex;
 use crate::{
     model::{
         DevnetConfig, LoadedConfig, PoolConfig, SimulationConfig, SimulationKind, SimulationStep,
-        V4HookConfig, default_minimum_fuzz_runs, default_minimum_invariant_depth,
-        default_minimum_invariant_runs,
+        V4HookConfig, default_max_init_code_size, default_max_runtime_code_size,
+        default_minimum_fuzz_runs, default_minimum_invariant_depth, default_minimum_invariant_runs,
     },
     permissions::{permission_flags, validate_hook_address_fee},
     process::validate_foundry_test_command,
@@ -98,6 +98,27 @@ fn validate_check_commands(config: &V4HookConfig) -> Result<()> {
     validate_foundry_test_command(&config.checks.unit, "checks.unit")?;
     validate_foundry_test_command(&config.checks.fuzz, "checks.fuzz")?;
     validate_foundry_test_command(&config.checks.invariant, "checks.invariant")?;
+    validate_slither_command(&config.checks.static_analysis)?;
+    validate_slither_policy(config)?;
+    if !config.checks.gas_snapshot.is_empty() {
+        validate_gas_snapshot_command(&config.checks.gas_snapshot)?;
+    }
+    if config.checks.code_size.max_runtime_bytes == 0
+        || config.checks.code_size.max_runtime_bytes > default_max_runtime_code_size()
+    {
+        bail!(
+            "checks.codeSize.maxRuntimeBytes must be between 1 and {}",
+            default_max_runtime_code_size()
+        );
+    }
+    if config.checks.code_size.max_init_code_bytes == 0
+        || config.checks.code_size.max_init_code_bytes > default_max_init_code_size()
+    {
+        bail!(
+            "checks.codeSize.maxInitCodeBytes must be between 1 and {}",
+            default_max_init_code_size()
+        );
+    }
     if config.checks.minimum_fuzz_runs < default_minimum_fuzz_runs() {
         bail!(
             "checks.minimumFuzzRuns must be at least {}",
@@ -115,6 +136,98 @@ fn validate_check_commands(config: &V4HookConfig) -> Result<()> {
             "checks.minimumInvariantDepth must be at least {}",
             default_minimum_invariant_depth()
         );
+    }
+    Ok(())
+}
+
+fn executable_name(argument: &str) -> &str {
+    Path::new(argument)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+}
+
+fn validate_slither_command(command: &[String]) -> Result<()> {
+    if !command
+        .iter()
+        .any(|argument| executable_name(argument) == "slither")
+    {
+        bail!("checks.staticAnalysis must invoke slither");
+    }
+    for argument in command {
+        let lower = argument.to_ascii_lowercase();
+        if lower == "--exclude"
+            || (lower.starts_with("--exclude-") && lower != "--exclude-dependencies")
+            || lower == "--include-detectors"
+            || lower == "--filter-paths"
+            || lower.starts_with("--filter-paths=")
+            || lower == "--json"
+            || lower.starts_with("--json=")
+            || lower == "--sarif"
+            || lower.starts_with("--sarif=")
+            || lower.starts_with("--fail-")
+            || lower == "--no-fail-pedantic"
+        {
+            bail!(
+                "checks.staticAnalysis cannot contain {argument}; v4hook owns detector scope, JSON output, and failure policy"
+            );
+        }
+    }
+    Ok(())
+}
+
+fn validate_slither_policy(config: &V4HookConfig) -> Result<()> {
+    let policy = &config.checks.slither_policy;
+    if policy.require_triage_on > policy.fail_on {
+        bail!("checks.slitherPolicy.requireTriageOn cannot exceed failOn");
+    }
+    let fingerprint = Regex::new(r"^sha256:[0-9a-f]{64}$").expect("static regex");
+    let dependency_path = Regex::new(r"^[A-Za-z0-9._/-]+/$").expect("static regex");
+    let mut dependency_paths = BTreeSet::new();
+    for path in &policy.dependency_paths {
+        if !dependency_path.is_match(path)
+            || Path::new(path).is_absolute()
+            || path.split('/').any(|part| part == "..")
+        {
+            bail!("Slither dependency paths must be safe relative directories ending in /");
+        }
+        if !dependency_paths.insert(path) {
+            bail!("duplicate Slither dependency path: {path}");
+        }
+    }
+    let mut fingerprints = BTreeSet::new();
+    for allowance in &policy.allowed_findings {
+        if !fingerprint.is_match(&allowance.fingerprint) {
+            bail!("Slither allowance fingerprints must be lowercase sha256 digests");
+        }
+        if allowance.reason.trim().is_empty() {
+            bail!("every Slither allowance requires a non-empty reason");
+        }
+        if !fingerprints.insert(&allowance.fingerprint) {
+            bail!(
+                "duplicate Slither allowance fingerprint: {}",
+                allowance.fingerprint
+            );
+        }
+    }
+    Ok(())
+}
+
+fn validate_gas_snapshot_command(command: &[String]) -> Result<()> {
+    if executable_name(command.first().map_or("", String::as_str)) != "forge"
+        || command.get(1).map(String::as_str) != Some("snapshot")
+        || !command
+            .iter()
+            .any(|argument| argument == "--check" || argument.starts_with("--check="))
+    {
+        bail!("checks.gasSnapshot must run `forge snapshot --check`");
+    }
+    if command.iter().any(|argument| {
+        matches!(argument.as_str(), "--allow-failure" | "--diff" | "--snap")
+            || argument.starts_with("--diff=")
+            || argument.starts_with("--snap=")
+    }) {
+        bail!("checks.gasSnapshot cannot write snapshots, diff without failure, or allow failure");
     }
     Ok(())
 }
@@ -151,7 +264,14 @@ fn validate_simulation(simulation: &mut SimulationConfig) -> Result<()> {
     )
 }
 
-fn validate_devnet(devnet: &DevnetConfig) -> Result<()> {
+fn normalize_scenario_address(value: &mut String, label: &str) -> Result<()> {
+    if value != "hook" {
+        *value = normalize_address(value, label)?;
+    }
+    Ok(())
+}
+
+fn validate_devnet(devnet: &mut DevnetConfig) -> Result<()> {
     if devnet.accounts == 0 || devnet.accounts > 1_000 {
         bail!("devnet.accounts must be between 1 and 1000");
     }
@@ -160,7 +280,7 @@ fn validate_devnet(devnet: &DevnetConfig) -> Result<()> {
     }
     let name = Regex::new(r"^[a-z][a-z0-9_-]*$").expect("static regex");
     let mut names = BTreeSet::new();
-    for scenario in &devnet.scenarios {
+    for scenario in &mut devnet.scenarios {
         if !name.is_match(&scenario.name) {
             bail!(
                 "devnet scenario names must start with a lowercase letter and contain only lowercase letters, digits, '-' or '_'"
@@ -173,6 +293,64 @@ fn validate_devnet(devnet: &DevnetConfig) -> Result<()> {
             &scenario.command,
             &format!("devnet scenario {} command", scenario.name),
         )?;
+        let verification = &mut scenario.verification;
+        if verification.expected_transactions == 0 || verification.expected_senders == 0 {
+            bail!("devnet scenario verification counts must be positive");
+        }
+        if verification.expected_senders > verification.expected_transactions {
+            bail!("devnet scenario expectedSenders cannot exceed expectedTransactions");
+        }
+        if verification.expected_senders > u64::from(devnet.accounts) {
+            bail!("devnet scenario expectedSenders exceeds the generated account count");
+        }
+        if verification.allowed_targets.is_empty() {
+            bail!("devnet scenario allowedTargets cannot be empty");
+        }
+        for (index, target) in verification.allowed_targets.iter_mut().enumerate() {
+            normalize_scenario_address(
+                target,
+                &format!("devnet scenario {} allowedTargets[{index}]", scenario.name),
+            )?;
+        }
+        let mut targets = verification.allowed_targets.iter().collect::<BTreeSet<_>>();
+        if targets.len() != verification.allowed_targets.len() {
+            bail!("devnet scenario allowedTargets must be unique");
+        }
+        targets.clear();
+        for (index, event) in verification.required_events.iter_mut().enumerate() {
+            normalize_scenario_address(
+                &mut event.address,
+                &format!(
+                    "devnet scenario {} requiredEvents[{index}].address",
+                    scenario.name
+                ),
+            )?;
+            event.topic0 = normalize_hex(
+                &event.topic0,
+                &format!(
+                    "devnet scenario {} requiredEvents[{index}].topic0",
+                    scenario.name
+                ),
+            )?;
+            if event.topic0.len() != 66 {
+                bail!("devnet required event topic0 must be exactly 32 bytes");
+            }
+        }
+        let reserved = verification
+            .reserved_account_indices
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
+        if reserved.len() != verification.reserved_account_indices.len() {
+            bail!("devnet reservedAccountIndices must be unique");
+        }
+        if reserved.iter().any(|index| *index >= devnet.accounts) {
+            bail!("devnet reserved account index is outside the generated account set");
+        }
+        let available = u64::from(devnet.accounts) - u64::try_from(reserved.len()).unwrap_or(0);
+        if verification.expected_senders > available {
+            bail!("devnet scenario expectedSenders includes reserved accounts");
+        }
     }
     Ok(())
 }
@@ -259,7 +437,7 @@ pub fn load_config(config_file: impl AsRef<Path>) -> Result<LoadedConfig> {
         &mut value.deployment.required_authorities,
         "deployment.requiredAuthorities",
     )?;
-    if let Some(devnet) = &value.devnet {
+    if let Some(devnet) = &mut value.devnet {
         validate_devnet(devnet)?;
     }
     if value.contract.artifact.is_empty() || value.deployment.script.is_empty() {
@@ -347,6 +525,22 @@ fn command_match_path(command: &[String]) -> Option<&str> {
             return command.get(index + 1).map(String::as_str);
         }
         if let Some(value) = argument.strip_prefix("--match-path=") {
+            return Some(value);
+        }
+    }
+    None
+}
+
+fn gas_snapshot_path(command: &[String]) -> Option<&str> {
+    for (index, argument) in command.iter().enumerate() {
+        if argument == "--check" {
+            return command
+                .get(index + 1)
+                .filter(|value| !value.starts_with('-'))
+                .map(String::as_str)
+                .or(Some(".gas-snapshot"));
+        }
+        if let Some(value) = argument.strip_prefix("--check=") {
             return Some(value);
         }
     }
@@ -459,6 +653,20 @@ pub fn project_readiness_issues(config: &LoadedConfig) -> Vec<String> {
         ("checks.invariant", &config.value.checks.invariant),
     ] {
         push_command_path_issues(&mut issues, project_root, command, label);
+    }
+    if config.value.checks.gas_snapshot.is_empty() {
+        issues.push("checks.gasSnapshot is required before planning".to_owned());
+    } else if let Some(snapshot) = gas_snapshot_path(&config.value.checks.gas_snapshot)
+        && !project_root.join(snapshot).is_file()
+    {
+        issues.push(format!(
+            "checks.gasSnapshot file does not exist: {snapshot}"
+        ));
+    }
+    for path in &config.value.checks.slither_policy.dependency_paths {
+        if !project_root.join(path).is_dir() {
+            issues.push(format!("Slither dependency path does not exist: {path}"));
+        }
     }
     if let Some(source) = script_source(&config.value.deployment.script)
         && !project_root.join(source).is_file()
@@ -644,6 +852,49 @@ mod tests {
     }
 
     #[test]
+    fn structured_slither_policy_owns_scope_and_exact_allowances() {
+        assert!(
+            validate_slither_command(&[
+                "slither".to_owned(),
+                ".".to_owned(),
+                "--exclude".to_owned(),
+                "timestamp".to_owned(),
+            ])
+            .is_err()
+        );
+        assert!(
+            validate_slither_command(&[
+                "slither".to_owned(),
+                ".".to_owned(),
+                "--filter-paths".to_owned(),
+                "src/".to_owned(),
+            ])
+            .is_err()
+        );
+        validate_slither_command(&["uvx".to_owned(), "slither".to_owned(), ".".to_owned()])
+            .unwrap();
+    }
+
+    #[test]
+    fn gas_budget_must_be_a_failing_snapshot_check() {
+        validate_gas_snapshot_command(&[
+            "forge".to_owned(),
+            "snapshot".to_owned(),
+            "--check".to_owned(),
+            ".gas-snapshot".to_owned(),
+        ])
+        .unwrap();
+        assert!(
+            validate_gas_snapshot_command(&[
+                "forge".to_owned(),
+                "snapshot".to_owned(),
+                "--diff".to_owned(),
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
     fn detects_stage_paths_sentinels_and_incompatible_authorities() {
         let root = temporary_directory();
         fs::create_dir_all(root.join("test/fork")).unwrap();
@@ -716,24 +967,31 @@ mod tests {
 
     #[test]
     fn validates_devnet_account_and_scenario_boundaries() {
-        let valid = DevnetConfig {
+        let mut valid = DevnetConfig {
             accounts: 100,
             block_time_seconds: Some(1),
             scenarios: vec![crate::model::DevnetScenario {
                 name: "mizu-market".to_owned(),
                 command: vec!["pnpm".to_owned(), "simulate".to_owned()],
+                verification: crate::model::DevnetScenarioVerification {
+                    expected_transactions: 198,
+                    expected_senders: 99,
+                    allowed_targets: vec!["0x1000000000000000000000000000000000000000".to_owned()],
+                    required_events: Vec::new(),
+                    reserved_account_indices: vec![0],
+                },
             }],
         };
-        validate_devnet(&valid).unwrap();
+        validate_devnet(&mut valid).unwrap();
 
         let mut invalid_accounts = valid.clone();
         invalid_accounts.accounts = 0;
-        assert!(validate_devnet(&invalid_accounts).is_err());
+        assert!(validate_devnet(&mut invalid_accounts).is_err());
 
         let mut duplicate = valid.clone();
         duplicate.scenarios.push(duplicate.scenarios[0].clone());
         assert!(
-            validate_devnet(&duplicate)
+            validate_devnet(&mut duplicate)
                 .unwrap_err()
                 .to_string()
                 .contains("duplicate")

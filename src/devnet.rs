@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -8,27 +8,30 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::{
     anvil::{AnvilStartOptions, start_anvil_with_options},
     artifact::code_hash,
     config::load_config,
     model::{
-        DevnetHookManifest, DevnetManifest, DevnetPoolManifest, DevnetScenarioEvidence,
-        DevnetState, DevnetStatus,
+        DevnetDownResult, DevnetHookManifest, DevnetManifest, DevnetPoolManifest,
+        DevnetReservedAccountEvidence, DevnetScenarioAssertion, DevnetScenarioEvidence,
+        DevnetScenarioReport, DevnetScenarioVerification, DevnetScenarioVerificationEvidence,
+        DevnetState, DevnetStatus, DevnetTransactionEvidence,
     },
     plan::{absolute_path, read_deployment_plan},
     process::{redact_command, run},
     rpc::{
-        anvil_accounts, block_hash, block_number, chain_id, code_at, reset_fork, set_anvil_code,
+        anvil_accounts, block_hash, block_number, chain_id, code_at, reset_fork, rpc_json,
+        set_anvil_code,
     },
     simulate::{
         DeploymentSimulationContext, execute_deployment_simulation, prepare_deployment_simulation,
     },
     util::{
-        assert_digest, calculate_digest, interpolate, normalize_address, now_iso, read_json,
-        sha256_bytes, sha256_file, status as report_status, write_json,
+        assert_digest, calculate_digest, interpolate, normalize_address, normalize_hex, now_iso,
+        read_json, sha256_bytes, sha256_file, status as report_status, write_json,
     },
 };
 
@@ -46,6 +49,14 @@ pub struct DevnetScenarioInput<'a> {
     pub scenario: &'a str,
     pub seed: u64,
     pub output: &'a Path,
+}
+
+#[derive(Clone)]
+struct AccountSnapshot {
+    index: u16,
+    address: String,
+    nonce: String,
+    balance: String,
 }
 
 fn absolute_output(path: &Path) -> Result<PathBuf> {
@@ -259,7 +270,7 @@ fn remove_generated_state(state_file: &Path) -> Result<()> {
     Ok(())
 }
 
-fn require_generated_manifest(path: &Path) -> Result<()> {
+fn read_generated_manifest(path: &Path) -> Result<DevnetManifest> {
     let manifest: DevnetManifest = read_json(path).with_context(|| {
         format!(
             "existing file is not a v4hook devnet manifest: {}",
@@ -272,7 +283,12 @@ fn require_generated_manifest(path: &Path) -> Result<()> {
             path.display()
         );
     }
-    assert_digest(&manifest, &manifest.digest, "existing devnet manifest")
+    assert_digest(&manifest, &manifest.digest, "existing devnet manifest")?;
+    Ok(manifest)
+}
+
+fn require_generated_manifest(path: &Path) -> Result<()> {
+    read_generated_manifest(path).map(|_| ())
 }
 
 pub fn up(input: &DevnetUpInput<'_>) -> Result<DevnetStatus> {
@@ -403,7 +419,400 @@ pub fn export(state_file: &Path, output: &Path) -> Result<DevnetManifest> {
     write_manifest(&state, output)
 }
 
-pub fn run_scenario(input: &DevnetScenarioInput<'_>) -> Result<DevnetScenarioEvidence> {
+fn rpc_quantity(value: &Value, label: &str) -> Result<String> {
+    let value = value
+        .as_str()
+        .with_context(|| format!("{label} is not an RPC quantity"))?;
+    let body = value
+        .strip_prefix("0x")
+        .with_context(|| format!("{label} is missing its 0x prefix"))?;
+    if body.is_empty() || !body.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        bail!("{label} is not a hexadecimal RPC quantity");
+    }
+    Ok(format!("0x{}", body.to_ascii_lowercase()))
+}
+
+fn quantity_u64(value: &Value, label: &str) -> Result<u64> {
+    let value = rpc_quantity(value, label)?;
+    u64::from_str_radix(&value[2..], 16).with_context(|| format!("parse {label}"))
+}
+
+fn account_snapshot(state: &DevnetState, index: u16) -> Result<AccountSnapshot> {
+    let address = state
+        .accounts
+        .get(usize::from(index))
+        .with_context(|| format!("reserved account index {index} is unavailable"))?
+        .clone();
+    Ok(AccountSnapshot {
+        index,
+        address: address.clone(),
+        nonce: rpc_quantity(
+            &rpc_json(
+                &state.rpc_url,
+                "eth_getTransactionCount",
+                &[json!(address), json!("latest")],
+            )?,
+            "account nonce",
+        )?,
+        balance: rpc_quantity(
+            &rpc_json(
+                &state.rpc_url,
+                "eth_getBalance",
+                &[json!(address), json!("latest")],
+            )?,
+            "account balance",
+        )?,
+    })
+}
+
+fn block_managed_transactions(
+    state: &DevnetState,
+    start_block: u64,
+    end_block: u64,
+) -> Result<BTreeSet<String>> {
+    let accounts = state.accounts.iter().cloned().collect::<BTreeSet<_>>();
+    let mut hashes = BTreeSet::new();
+    for number in start_block.saturating_add(1)..=end_block {
+        let block = rpc_json(
+            &state.rpc_url,
+            "eth_getBlockByNumber",
+            &[json!(format!("0x{number:x}")), json!(true)],
+        )?;
+        let transactions = block
+            .get("transactions")
+            .and_then(Value::as_array)
+            .with_context(|| format!("block {number} is missing transactions"))?;
+        for transaction in transactions {
+            let sender = transaction
+                .get("from")
+                .and_then(Value::as_str)
+                .map(|value| normalize_address(value, "transaction sender"))
+                .transpose()?;
+            if sender
+                .as_ref()
+                .is_some_and(|sender| accounts.contains(sender))
+            {
+                let hash = transaction
+                    .get("hash")
+                    .and_then(Value::as_str)
+                    .context("managed transaction is missing its hash")?;
+                let hash = normalize_hex(hash, "transaction hash")?;
+                if hash.len() != 66 {
+                    bail!("transaction hash must be exactly 32 bytes");
+                }
+                hashes.insert(hash);
+            }
+        }
+    }
+    Ok(hashes)
+}
+
+fn resolved_address(value: &str, hook: &str) -> String {
+    if value == "hook" {
+        hook.to_owned()
+    } else {
+        value.to_owned()
+    }
+}
+
+fn failed_verification(
+    policy: &DevnetScenarioVerification,
+    issue: impl Into<String>,
+) -> DevnetScenarioVerificationEvidence {
+    DevnetScenarioVerificationEvidence {
+        expected_transactions: policy.expected_transactions,
+        observed_transactions: 0,
+        expected_senders: policy.expected_senders,
+        observed_senders: 0,
+        assertions: vec![DevnetScenarioAssertion {
+            name: "verification-executed".to_owned(),
+            passed: false,
+        }],
+        transactions: Vec::new(),
+        reserved_accounts: Vec::new(),
+        issues: vec![issue.into()],
+        passed: false,
+    }
+}
+
+struct ScenarioPolicyContext {
+    managed_accounts: BTreeSet<String>,
+    reserved_addresses: BTreeSet<String>,
+    allowed_targets: BTreeSet<String>,
+    required_events: Vec<(String, String)>,
+}
+
+struct CheckedTransaction {
+    evidence: DevnetTransactionEvidence,
+    events_present: bool,
+    issues: Vec<String>,
+}
+
+fn read_scenario_report(path: &Path) -> Result<(BTreeSet<String>, Vec<String>)> {
+    let report: DevnetScenarioReport = read_json(path)?;
+    if report.schema_version != "v4hook.devnet-scenario-report.v1" {
+        bail!(
+            "unsupported devnet scenario report schemaVersion: {}",
+            report.schema_version
+        );
+    }
+    let mut hashes = BTreeSet::new();
+    let mut issues = Vec::new();
+    for hash in report.transactions {
+        let hash = normalize_hex(&hash, "scenario transaction hash")?;
+        if hash.len() != 66 {
+            bail!("scenario transaction hash must be exactly 32 bytes");
+        }
+        if !hashes.insert(hash) {
+            issues.push("scenario report contains a duplicate transaction hash".to_owned());
+        }
+    }
+    Ok((hashes, issues))
+}
+
+fn scenario_policy_context(
+    state: &DevnetState,
+    policy: &DevnetScenarioVerification,
+    before: &[AccountSnapshot],
+) -> ScenarioPolicyContext {
+    ScenarioPolicyContext {
+        managed_accounts: state.accounts.iter().cloned().collect(),
+        reserved_addresses: before.iter().map(|item| item.address.clone()).collect(),
+        allowed_targets: policy
+            .allowed_targets
+            .iter()
+            .map(|value| resolved_address(value, &state.hook_address))
+            .collect(),
+        required_events: policy
+            .required_events
+            .iter()
+            .map(|event| {
+                (
+                    resolved_address(&event.address, &state.hook_address),
+                    event.topic0.clone(),
+                )
+            })
+            .collect(),
+    }
+}
+
+fn log_matches_event(log: &Value, address: &str, topic0: &str) -> bool {
+    let actual_address = log
+        .get("address")
+        .and_then(Value::as_str)
+        .and_then(|value| normalize_address(value, "log address").ok());
+    let actual_topic = log
+        .get("topics")
+        .and_then(Value::as_array)
+        .and_then(|topics| topics.first())
+        .and_then(Value::as_str)
+        .and_then(|value| normalize_hex(value, "log topic").ok());
+    actual_address.as_deref() == Some(address) && actual_topic.as_deref() == Some(topic0)
+}
+
+fn check_transaction(
+    state: &DevnetState,
+    policy: &ScenarioPolicyContext,
+    hash: &str,
+    start_block: u64,
+    end_block: u64,
+) -> Result<CheckedTransaction> {
+    let transaction = rpc_json(&state.rpc_url, "eth_getTransactionByHash", &[json!(hash)])?;
+    let receipt = rpc_json(&state.rpc_url, "eth_getTransactionReceipt", &[json!(hash)])?;
+    if transaction.is_null() || receipt.is_null() {
+        bail!("transaction or receipt is unavailable: {hash}");
+    }
+    let sender = normalize_address(
+        transaction
+            .get("from")
+            .and_then(Value::as_str)
+            .context("transaction is missing from")?,
+        "transaction sender",
+    )?;
+    let target = normalize_address(
+        transaction
+            .get("to")
+            .and_then(Value::as_str)
+            .context("scenario transactions cannot create contracts")?,
+        "transaction target",
+    )?;
+    let block_number = quantity_u64(
+        receipt
+            .get("blockNumber")
+            .context("receipt is missing blockNumber")?,
+        "receipt blockNumber",
+    )?;
+    let mut issues = Vec::new();
+    if !policy.managed_accounts.contains(&sender) {
+        issues.push(format!(
+            "transaction sender is not a generated account: {sender}"
+        ));
+    }
+    if policy.reserved_addresses.contains(&sender) {
+        issues.push(format!(
+            "reserved account sent a scenario transaction: {sender}"
+        ));
+    }
+    if !policy.allowed_targets.contains(&target) {
+        issues.push(format!("transaction target is not allowed: {target}"));
+    }
+    if rpc_quantity(
+        receipt.get("status").context("receipt is missing status")?,
+        "receipt status",
+    )? != "0x1"
+    {
+        issues.push(format!("transaction reverted: {hash}"));
+    }
+    if block_number <= start_block || block_number > end_block {
+        issues.push(format!(
+            "transaction is outside the scenario block range: {hash}"
+        ));
+    }
+    let logs = receipt
+        .get("logs")
+        .and_then(Value::as_array)
+        .context("receipt is missing logs")?;
+    let events_present = policy.required_events.iter().all(|(address, topic)| {
+        let present = logs
+            .iter()
+            .any(|log| log_matches_event(log, address, topic));
+        if !present {
+            issues.push(format!(
+                "transaction {hash} is missing required event {topic} from {address}"
+            ));
+        }
+        present
+    });
+    Ok(CheckedTransaction {
+        evidence: DevnetTransactionEvidence {
+            hash: hash.to_owned(),
+            sender,
+            target,
+            block_number,
+            gas_used: rpc_quantity(
+                receipt
+                    .get("gasUsed")
+                    .context("receipt is missing gasUsed")?,
+                "receipt gasUsed",
+            )?,
+        },
+        events_present,
+        issues,
+    })
+}
+
+fn verify_reserved_accounts(
+    state: &DevnetState,
+    before: &[AccountSnapshot],
+) -> Result<(Vec<DevnetReservedAccountEvidence>, Vec<String>)> {
+    let mut evidence = Vec::new();
+    let mut issues = Vec::new();
+    for snapshot in before {
+        let after = account_snapshot(state, snapshot.index)?;
+        let unchanged = snapshot.nonce == after.nonce && snapshot.balance == after.balance;
+        if !unchanged {
+            issues.push(format!(
+                "reserved account {} changed nonce or native balance",
+                snapshot.address
+            ));
+        }
+        evidence.push(DevnetReservedAccountEvidence {
+            index: snapshot.index,
+            address: snapshot.address.clone(),
+            nonce_before: snapshot.nonce.clone(),
+            nonce_after: after.nonce,
+            balance_before: snapshot.balance.clone(),
+            balance_after: after.balance,
+            unchanged,
+        });
+    }
+    Ok((evidence, issues))
+}
+
+fn verify_scenario_report(
+    state: &DevnetState,
+    policy: &DevnetScenarioVerification,
+    report_path: &Path,
+    start_block: u64,
+    end_block: u64,
+    before: &[AccountSnapshot],
+) -> Result<DevnetScenarioVerificationEvidence> {
+    let (reported, mut issues) = read_scenario_report(report_path)?;
+    let managed = block_managed_transactions(state, start_block, end_block)?;
+    let managed_transactions_complete = reported == managed;
+    if !managed_transactions_complete {
+        issues.push(format!(
+            "scenario report covers {} hashes but the block range contains {} managed-account transactions",
+            reported.len(),
+            managed.len()
+        ));
+    }
+    if u64::try_from(reported.len()).unwrap_or(u64::MAX) != policy.expected_transactions {
+        issues.push(format!(
+            "expected {} transactions, observed {}",
+            policy.expected_transactions,
+            reported.len()
+        ));
+    }
+    let context = scenario_policy_context(state, policy, before);
+    let mut senders = BTreeSet::new();
+    let mut transactions = Vec::new();
+    let mut required_events_present = true;
+    for hash in &reported {
+        let checked = check_transaction(state, &context, hash, start_block, end_block)?;
+        senders.insert(checked.evidence.sender.clone());
+        required_events_present &= checked.events_present;
+        issues.extend(checked.issues);
+        transactions.push(checked.evidence);
+    }
+    let observed_senders = u64::try_from(senders.len()).unwrap_or(u64::MAX);
+    if observed_senders != policy.expected_senders {
+        issues.push(format!(
+            "expected {} unique senders, observed {observed_senders}",
+            policy.expected_senders
+        ));
+    }
+    let (reserved_accounts, reserved_issues) = verify_reserved_accounts(state, before)?;
+    issues.extend(reserved_issues);
+    let reserved_accounts_unchanged = reserved_accounts.iter().all(|account| account.unchanged);
+    transactions.sort_by(|left, right| left.hash.cmp(&right.hash));
+    let passed = issues.is_empty();
+    Ok(DevnetScenarioVerificationEvidence {
+        expected_transactions: policy.expected_transactions,
+        observed_transactions: u64::try_from(reported.len()).unwrap_or(u64::MAX),
+        expected_senders: policy.expected_senders,
+        observed_senders,
+        assertions: vec![
+            DevnetScenarioAssertion {
+                name: "managed-transactions-complete".to_owned(),
+                passed: managed_transactions_complete,
+            },
+            DevnetScenarioAssertion {
+                name: "required-events-present".to_owned(),
+                passed: required_events_present,
+            },
+            DevnetScenarioAssertion {
+                name: "reserved-accounts-unchanged".to_owned(),
+                passed: reserved_accounts_unchanged,
+            },
+        ],
+        transactions,
+        reserved_accounts,
+        issues,
+        passed,
+    })
+}
+
+struct PreparedScenario {
+    state: DevnetState,
+    scenario: crate::model::DevnetScenario,
+    report_path: PathBuf,
+    before: Vec<AccountSnapshot>,
+    command: Vec<String>,
+    environment: BTreeMap<String, String>,
+}
+
+fn prepare_scenario(input: &DevnetScenarioInput<'_>) -> Result<PreparedScenario> {
     let state = read_state(input.state_file)?;
     validate_live_state(&state)?;
     let plan = read_deployment_plan(&state.plan_path)?;
@@ -424,6 +833,28 @@ pub fn run_scenario(input: &DevnetScenarioInput<'_>) -> Result<DevnetScenarioEvi
                 .find(|scenario| scenario.name == input.scenario)
         })
         .with_context(|| format!("unknown devnet scenario: {}", input.scenario))?;
+    let scenario = scenario.clone();
+    let report_path = absolute_output(
+        &input
+            .output
+            .with_extension(format!("scenario-report-{}.json", std::process::id())),
+    )?;
+    if report_path.exists() {
+        bail!(
+            "refusing to replace stale scenario report: {}",
+            report_path.display()
+        );
+    }
+    if let Some(parent) = report_path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("create scenario report directory {}", parent.display()))?;
+    }
+    let before = scenario
+        .verification
+        .reserved_account_indices
+        .iter()
+        .map(|index| account_snapshot(&state, *index))
+        .collect::<Result<Vec<_>>>()?;
     let variables = BTreeMap::from([
         ("devnetRpc".to_owned(), state.rpc_url.clone()),
         ("devnetManifest".to_owned(), state.manifest_path.clone()),
@@ -431,6 +862,10 @@ pub fn run_scenario(input: &DevnetScenarioInput<'_>) -> Result<DevnetScenarioEvi
         ("projectRoot".to_owned(), state.project_root.clone()),
         ("seed".to_owned(), input.seed.to_string()),
         ("walletCount".to_owned(), state.accounts.len().to_string()),
+        (
+            "scenarioReport".to_owned(),
+            report_path.to_string_lossy().into_owned(),
+        ),
     ]);
     let command = scenario
         .command
@@ -449,7 +884,38 @@ pub fn run_scenario(input: &DevnetScenarioInput<'_>) -> Result<DevnetScenarioEvi
             "V4HOOK_DEVNET_WALLET_COUNT".to_owned(),
             state.accounts.len().to_string(),
         ),
+        (
+            "V4HOOK_SCENARIO_REPORT".to_owned(),
+            report_path.to_string_lossy().into_owned(),
+        ),
     ]);
+    Ok(PreparedScenario {
+        state,
+        scenario,
+        report_path,
+        before,
+        command,
+        environment,
+    })
+}
+
+fn remove_scenario_report(path: &Path) -> Result<()> {
+    if path.exists() {
+        fs::remove_file(path)
+            .with_context(|| format!("remove temporary scenario report {}", path.display()))?;
+    }
+    Ok(())
+}
+
+pub fn run_scenario(input: &DevnetScenarioInput<'_>) -> Result<DevnetScenarioEvidence> {
+    let PreparedScenario {
+        state,
+        scenario,
+        report_path,
+        before,
+        command,
+        environment,
+    } = prepare_scenario(input)?;
     let start_block = block_number(&state.rpc_url)?;
     report_status(&format!(
         "Running devnet scenario {} with seed {}...",
@@ -458,8 +924,30 @@ pub fn run_scenario(input: &DevnetScenarioInput<'_>) -> Result<DevnetScenarioEvi
     let result = run(&command, &state.project_root, Some(&environment), false)?;
     let end_block = block_number(&state.rpc_url).ok();
     let integrity_passed = validate_live_state(&state).is_ok();
+    let verification = if let Some(end_block) = end_block {
+        match verify_scenario_report(
+            &state,
+            &scenario.verification,
+            &report_path,
+            start_block,
+            end_block,
+            &before,
+        ) {
+            Ok(evidence) => evidence,
+            Err(error) => failed_verification(
+                &scenario.verification,
+                format!("scenario report verification failed: {error:#}"),
+            ),
+        }
+    } else {
+        failed_verification(
+            &scenario.verification,
+            "the end block could not be read after the scenario",
+        )
+    };
+    remove_scenario_report(&report_path)?;
     let mut evidence = DevnetScenarioEvidence {
-        schema_version: "v4hook.devnet-scenario-evidence.v1".to_owned(),
+        schema_version: "v4hook.devnet-scenario-evidence.v2".to_owned(),
         created_at: now_iso(),
         plan_digest: state.plan_digest,
         scenario: scenario.name.clone(),
@@ -473,7 +961,11 @@ pub fn run_scenario(input: &DevnetScenarioInput<'_>) -> Result<DevnetScenarioEvi
         stdout_hash: sha256_bytes(result.stdout),
         stderr_hash: sha256_bytes(result.stderr),
         integrity_passed,
-        passed: result.exit_code == 0 && end_block.is_some() && integrity_passed,
+        passed: result.exit_code == 0
+            && end_block.is_some()
+            && integrity_passed
+            && verification.passed,
+        verification,
         digest: String::new(),
     };
     evidence.digest = calculate_digest(&evidence)?;
@@ -481,6 +973,8 @@ pub fn run_scenario(input: &DevnetScenarioInput<'_>) -> Result<DevnetScenarioEvi
     if !evidence.passed {
         let reason = if result.exit_code != 0 {
             format!("command exited with code {}", result.exit_code)
+        } else if !evidence.verification.passed {
+            "independent transaction verification failed".to_owned()
         } else {
             "the devnet became unavailable or failed its post-run integrity check".to_owned()
         };
@@ -493,12 +987,82 @@ pub fn run_scenario(input: &DevnetScenarioInput<'_>) -> Result<DevnetScenarioEvi
     Ok(evidence)
 }
 
-pub fn down(state_file: &Path) -> Result<bool> {
+fn regular_generated_file_exists(path: &Path, label: &str) -> Result<bool> {
+    if !path.exists() {
+        return Ok(false);
+    }
+    let metadata = fs::symlink_metadata(path)
+        .with_context(|| format!("inspect generated {label} {}", path.display()))?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        bail!(
+            "refusing to remove non-regular generated {label}: {}",
+            path.display()
+        );
+    }
+    Ok(true)
+}
+
+fn remove_regular_generated_file(path: &Path, label: &str) -> Result<bool> {
+    if !regular_generated_file_exists(path, label)? {
+        return Ok(false);
+    }
+    fs::remove_file(path)
+        .with_context(|| format!("remove generated {label} {}", path.display()))?;
+    Ok(true)
+}
+
+fn purge_generated_artifacts(state_file: &Path, state: &DevnetState) -> Result<Vec<String>> {
+    let manifest_path = Path::new(&state.manifest_path);
+    if manifest_path.exists() {
+        let manifest = read_generated_manifest(manifest_path)?;
+        if manifest.plan_digest != state.plan_digest
+            || manifest.rpc_url != state.rpc_url
+            || manifest.hook.address != state.hook_address
+        {
+            bail!("refusing to remove a devnet manifest that does not match the recorded state");
+        }
+    }
+    let log_path = Path::new(&state.log_path);
+    let expected_log_directory = state_file.parent().unwrap_or(Path::new(".")).join("devnet");
+    let log_name = log_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    if log_path.parent() != Some(expected_log_directory.as_path())
+        || !log_name.starts_with("anvil-")
+        || !Path::new(log_name)
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("log"))
+    {
+        bail!("refusing to remove an Anvil log outside the generated devnet directory");
+    }
+    regular_generated_file_exists(manifest_path, "manifest")?;
+    regular_generated_file_exists(log_path, "Anvil log")?;
+
+    let mut removed = Vec::new();
+    if remove_regular_generated_file(manifest_path, "manifest")? {
+        removed.push(manifest_path.to_string_lossy().into_owned());
+    }
+    if remove_regular_generated_file(log_path, "Anvil log")? {
+        removed.push(log_path.to_string_lossy().into_owned());
+    }
+    Ok(removed)
+}
+
+pub fn down(state_file: &Path, purge_generated: bool) -> Result<DevnetDownResult> {
     let state_file = absolute_output(state_file)?;
     let state = read_state(&state_file)?;
     let Some(command) = process_command(state.pid)? else {
+        let removed = if purge_generated {
+            purge_generated_artifacts(&state_file, &state)?
+        } else {
+            Vec::new()
+        };
         remove_generated_state(&state_file)?;
-        return Ok(false);
+        return Ok(DevnetDownResult {
+            stopped: false,
+            removed,
+        });
     };
     if !command_matches_anvil(&command, state.port, state.chain_id) {
         bail!(
@@ -520,8 +1084,16 @@ pub fn down(state_file: &Path) -> Result<bool> {
     }
     for _ in 0..50 {
         if process_command(state.pid)?.is_none() {
+            let removed = if purge_generated {
+                purge_generated_artifacts(&state_file, &state)?
+            } else {
+                Vec::new()
+            };
             remove_generated_state(&state_file)?;
-            return Ok(true);
+            return Ok(DevnetDownResult {
+                stopped: true,
+                removed,
+            });
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -531,6 +1103,87 @@ pub fn down(state_file: &Path) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TestAnvil(std::process::Child);
+
+    impl Drop for TestAnvil {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    fn start_test_anvil() -> (TestAnvil, String, Vec<String>) {
+        use std::{net::TcpListener, process::Stdio};
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let child = Command::new("anvil")
+            .args([
+                "--silent",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                &port.to_string(),
+                "--chain-id",
+                "31337",
+                "--accounts",
+                "3",
+            ])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let rpc_url = format!("http://127.0.0.1:{port}");
+        crate::rpc::wait_for_rpc(&rpc_url, Duration::from_secs(10)).unwrap();
+        let accounts = anvil_accounts(&rpc_url).unwrap();
+        (TestAnvil(child), rpc_url, accounts)
+    }
+
+    fn verification_test_state(rpc_url: &str, accounts: &[String]) -> DevnetState {
+        DevnetState {
+            schema_version: "v4hook.devnet-state.v1".to_owned(),
+            created_at: now_iso(),
+            pid: 0,
+            port: rpc_url.rsplit(':').next().unwrap().parse().unwrap(),
+            rpc_url: rpc_url.to_owned(),
+            log_path: String::new(),
+            plan_path: String::new(),
+            plan_digest: "sha256:test".to_owned(),
+            project_root: String::new(),
+            chain_id: 31_337,
+            fork_block_number: 0,
+            fork_block_hash: block_hash(rpc_url, 0).unwrap(),
+            hook_address: "0x0000000000000000000000000000000000000001".to_owned(),
+            deployed_runtime_code_hash: String::new(),
+            marker_address: String::new(),
+            marker_code: String::new(),
+            accounts: accounts.to_vec(),
+            manifest_path: String::new(),
+            digest: String::new(),
+        }
+    }
+
+    fn send_test_transactions(rpc_url: &str, accounts: &[String]) -> Vec<String> {
+        (0..2)
+            .map(|_| {
+                rpc_json(
+                    rpc_url,
+                    "eth_sendTransaction",
+                    &[json!({
+                        "from": accounts[1],
+                        "to": accounts[2],
+                        "value": "0x1"
+                    })],
+                )
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_owned()
+            })
+            .collect()
+    }
 
     fn sample_manifest() -> DevnetManifest {
         let mut manifest = DevnetManifest {
@@ -597,5 +1250,124 @@ mod tests {
         fs::write(&path, "{}\n").unwrap();
         assert!(require_generated_manifest(&path).is_err());
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn purge_removes_only_state_bound_generated_artifacts() {
+        let root =
+            std::env::temp_dir().join(format!("v4hook-devnet-purge-test-{}", std::process::id()));
+        let devnet_directory = root.join("devnet");
+        fs::create_dir_all(&devnet_directory).unwrap();
+        let state_path = root.join("state.json");
+        let manifest_path = root.join("manifest.json");
+        let log_path = devnet_directory.join("anvil-test.log");
+        let mut manifest = sample_manifest();
+        manifest.plan_digest = "sha256:plan".to_owned();
+        manifest.rpc_url = "http://127.0.0.1:8545".to_owned();
+        manifest.hook.address = "0x0000000000000000000000000000000000000001".to_owned();
+        manifest.digest = calculate_digest(&manifest).unwrap();
+        write_json(&manifest_path, &manifest).unwrap();
+        fs::write(&log_path, "eth_chainId\n").unwrap();
+        let state = DevnetState {
+            schema_version: "v4hook.devnet-state.v1".to_owned(),
+            created_at: "2026-01-01T00:00:00.000Z".to_owned(),
+            pid: 1,
+            port: 8545,
+            rpc_url: manifest.rpc_url.clone(),
+            log_path: log_path.to_string_lossy().into_owned(),
+            plan_path: root.join("plan.json").to_string_lossy().into_owned(),
+            plan_digest: manifest.plan_digest.clone(),
+            project_root: root.to_string_lossy().into_owned(),
+            chain_id: 31_337,
+            fork_block_number: 1,
+            fork_block_hash: "0x00".to_owned(),
+            hook_address: manifest.hook.address.clone(),
+            deployed_runtime_code_hash: "0x00".to_owned(),
+            marker_address: "0x0000000000000000000000000000000000000002".to_owned(),
+            marker_code: "0x00".to_owned(),
+            accounts: Vec::new(),
+            manifest_path: manifest_path.to_string_lossy().into_owned(),
+            digest: String::new(),
+        };
+        let mut invalid = state.clone();
+        invalid.log_path = root
+            .join("not-a-generated-log.txt")
+            .to_string_lossy()
+            .into_owned();
+        assert!(purge_generated_artifacts(&state_path, &invalid).is_err());
+        assert!(manifest_path.exists());
+        assert!(log_path.exists());
+
+        let removed = purge_generated_artifacts(&state_path, &state).unwrap();
+        assert_eq!(removed.len(), 2);
+        assert!(!manifest_path.exists());
+        assert!(!log_path.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires Foundry Anvil and unrestricted localhost sockets"]
+    fn independently_verifies_every_reported_devnet_transaction() {
+        let (_anvil, rpc_url, accounts) = start_test_anvil();
+        assert_eq!(accounts.len(), 3);
+        let state = verification_test_state(&rpc_url, &accounts);
+        let policy = DevnetScenarioVerification {
+            expected_transactions: 2,
+            expected_senders: 1,
+            allowed_targets: vec![accounts[2].clone()],
+            required_events: Vec::new(),
+            reserved_account_indices: vec![0],
+        };
+        let before = vec![account_snapshot(&state, 0).unwrap()];
+        let start_block = block_number(&rpc_url).unwrap();
+        let hashes = send_test_transactions(&rpc_url, &accounts);
+        let end_block = block_number(&rpc_url).unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "v4hook-scenario-verification-test-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let report_path = root.join("report.json");
+        write_json(
+            &report_path,
+            &DevnetScenarioReport {
+                schema_version: "v4hook.devnet-scenario-report.v1".to_owned(),
+                transactions: hashes.clone(),
+            },
+        )
+        .unwrap();
+        let evidence = verify_scenario_report(
+            &state,
+            &policy,
+            &report_path,
+            start_block,
+            end_block,
+            &before,
+        )
+        .unwrap();
+        assert!(evidence.passed, "{:?}", evidence.issues);
+        assert_eq!(evidence.observed_transactions, 2);
+        assert_eq!(evidence.observed_senders, 1);
+        assert!(evidence.reserved_accounts[0].unchanged);
+
+        write_json(
+            &report_path,
+            &DevnetScenarioReport {
+                schema_version: "v4hook.devnet-scenario-report.v1".to_owned(),
+                transactions: vec![hashes[0].clone()],
+            },
+        )
+        .unwrap();
+        let incomplete = verify_scenario_report(
+            &state,
+            &policy,
+            &report_path,
+            start_block,
+            end_block,
+            &before,
+        )
+        .unwrap();
+        assert!(!incomplete.passed);
+        fs::remove_dir_all(root).unwrap();
     }
 }

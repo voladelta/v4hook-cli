@@ -51,6 +51,10 @@ fn rpc_value(url: &str, method: &str, params: &[Value]) -> Result<Value> {
     result_from_payload(&payload, url, method)
 }
 
+pub fn rpc_json(url: &str, method: &str, params: &[Value]) -> Result<Value> {
+    rpc_value(url, method, params)
+}
+
 pub fn rpc<T: DeserializeOwned>(url: &str, method: &str, params: &[Value]) -> Result<T> {
     serde_json::from_value(rpc_value(url, method, params)?)
         .with_context(|| format!("decode RPC {method} result"))

@@ -21,8 +21,9 @@ use crate::{
     util::status,
 };
 
-const PRESERVED_PATHS: [&str; 20] = [
+const PRESERVED_PATHS: [&str; 21] = [
     ".env.example",
+    ".gas-snapshot",
     ".github/workflows/test.yml",
     ".gitignore",
     "AGENTS.md",

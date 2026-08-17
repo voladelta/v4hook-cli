@@ -132,7 +132,7 @@ This command is for maintainers of this repository:
 
 ```sh
 v4hook template refresh \
-  --version 1.3.0 \
+  --version 2.0.0 \
   --source Uniswap/v4-template \
   --reference main
 ```
@@ -170,6 +170,17 @@ The unit, fuzz, invariant, quadrant and postcondition gates must use `forge test
 `checks.minimumInvariantDepth` are fail-closed workload floors. They cannot be configured below
 1,000 fuzz cases or 256 invariant campaigns at depth 500. Check and simulation evidence records
 the actual executed test counts and workloads. A skipped Foundry test never satisfies a gate.
+
+The CLI owns Slither's JSON and severity flags. Keep `checks.staticAnalysis` to the executable,
+target and compiler arguments. Put pinned dependency directories in
+`checks.slitherPolicy.dependencyPaths`; broad detector exclusions and caller-supplied output or
+failure flags are rejected. High findings always fail. Low and medium findings require an exact
+source-bound fingerprint and non-empty reason in `allowedFindings`; stale allowances fail when code
+moves. The failing check prints the fingerprint needed for an independently reviewed triage.
+
+`checks.codeSize` enforces limits no larger than the EVM runtime and initcode ceilings. The
+configured `checks.gasSnapshot` must be a failing `forge snapshot --check` command against a
+committed snapshot. Update that snapshot only after reviewing and explaining the gas change.
 
 For a broadcast step that depends on contract roles, declare each role and address in the step's
 `requiredAuthorities` object. Use `deployment.requiredAuthorities` for live hook deployment and
@@ -220,7 +231,17 @@ v4hook plan \
 v4hook simulate \
   --plan .v4hook/deployment-plan.json \
   --output .v4hook/deployment-evidence.json
+
+v4hook readiness \
+  --config v4hook.config.json \
+  --plan .v4hook/deployment-plan.json \
+  --simulation .v4hook/deployment-evidence.json
 ```
+
+`readiness` validates bound evidence rather than accepting a self-attestation. It reports
+configuration, local and testnet stages separately. Launch readiness remains false because an
+independent security/economic review, production monitoring and explicit live authorization are
+external facts the CLI cannot manufacture.
 
 ## Run a persistent local devnet
 
@@ -255,8 +276,11 @@ The CLI verifies a process-command fingerprint, fork block hash, on-chain owners
 runtime before status, reset, export or scenario operations. `devnet down` refuses to signal a PID
 that does not match the recorded Anvil process. `reset` restores the pinned fork and repeats the
 same plan-bound bootstrap; it does not preserve interactive changes.
-`devnet down` retains the generated manifest and private log for debugging. The next `devnet up`
-may replace only a digest-valid v4hook manifest and creates a new private log.
+`devnet down` retains the generated manifest and private log for debugging. Use
+`devnet down --purge-generated` to remove only the digest-verified manifest and state-owned Anvil
+log after shutdown. It refuses symlinks, unrelated manifests and logs outside the generated devnet
+directory. The next `devnet up` may replace only a digest-valid v4hook manifest and creates a new
+private log.
 
 Override the development account count, port or interval mining when needed:
 
@@ -278,6 +302,10 @@ site origin to `simulation.anvilArgs` when only one web origin should have acces
 Hook-specific traffic belongs in the hook project because only that project knows its router ABI,
 Permit2 flow and `hookData` encoding. Declare commands in the optional `devnet` config:
 
+Template 2.0 requires a `verification` policy on every configured scenario. When upgrading an
+older project, add the exact transaction/sender counts, allowed targets, required common hook
+events and any reserved browser-account indices before running the scenario again.
+
 ```json
 {
   "devnet": {
@@ -285,7 +313,16 @@ Permit2 flow and `hookData` encoding. Declare commands in the optional `devnet` 
     "scenarios": [
       {
         "name": "market",
-        "command": ["pnpm", "devnet:market", "--", "--manifest", "{devnetManifest}", "--seed", "{seed}"]
+        "command": ["pnpm", "devnet:market", "--", "--manifest", "{devnetManifest}", "--seed", "{seed}"],
+        "verification": {
+          "expectedTransactions": 198,
+          "expectedSenders": 99,
+          "allowedTargets": ["0x1000000000000000000000000000000000000000"],
+          "requiredEvents": [
+            {"address": "hook", "topic0": "0x0000000000000000000000000000000000000000000000000000000000000000"}
+          ],
+          "reservedAccountIndices": [0]
+        }
       }
     ]
   }
@@ -298,11 +335,22 @@ Run a scenario and retain hashed evidence:
 v4hook devnet run --scenario market --seed 42
 ```
 
-Scenario commands receive `V4HOOK_DEVNET_RPC_URL`, `V4HOOK_DEVNET_MANIFEST`,
-`V4HOOK_HOOK_ADDRESS`, `V4HOOK_SCENARIO_SEED` and `V4HOOK_DEVNET_WALLET_COUNT`. Available command
+Replace the target and event topic with the intended router and real hook event. Scenario commands
+receive `V4HOOK_DEVNET_RPC_URL`, `V4HOOK_DEVNET_MANIFEST`, `V4HOOK_HOOK_ADDRESS`,
+`V4HOOK_SCENARIO_SEED`, `V4HOOK_DEVNET_WALLET_COUNT` and `V4HOOK_SCENARIO_REPORT`. Available command
 placeholders are `{devnetRpc}`, `{devnetManifest}`, `{hookAddress}`, `{projectRoot}`, `{seed}` and
-`{walletCount}`. A scenario command that starts and exits nonzero still writes evidence before the
-CLI exits unsuccessfully; an executable that cannot be started fails before an execution record
+`{walletCount}` and `{scenarioReport}`. The scenario must write only this untrusted report:
+
+```json
+{"schemaVersion":"v4hook.devnet-scenario-report.v1","transactions":["0x..."]}
+```
+
+The CLI independently scans every block in the scenario range, requires the report to cover every
+managed-account transaction, fetches each successful receipt, checks unique senders and allowed
+targets, requires configured hook events per receipt, and proves reserved accounts kept the same
+nonce and native balance. Evidence v2 retains every verified transaction. A submitted hash or
+zero exit code alone is never success. A scenario command that starts and exits nonzero still
+writes failure evidence; an executable that cannot be started fails before an execution record
 exists.
 
 Use the Uniswap Universal Router and Permit2 for application-parity swaps; never treat the local

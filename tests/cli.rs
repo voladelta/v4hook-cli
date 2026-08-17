@@ -69,6 +69,24 @@ fn devnet_help_exposes_the_persistent_lifecycle() {
     for command in ["up", "status", "reset", "export", "run", "down"] {
         assert!(help.contains(command), "missing devnet command {command}");
     }
+    let down = Command::new(env!("CARGO_BIN_EXE_v4hook"))
+        .args(["devnet", "down", "--help"])
+        .output()
+        .expect("run devnet down help");
+    assert!(String::from_utf8_lossy(&down.stdout).contains("--purge-generated"));
+}
+
+#[test]
+fn readiness_help_requires_bound_evidence_in_stages() {
+    let output = Command::new(env!("CARGO_BIN_EXE_v4hook"))
+        .args(["readiness", "--help"])
+        .output()
+        .expect("run readiness help");
+    assert!(output.status.success());
+    let help = String::from_utf8_lossy(&output.stdout);
+    for option in ["--config", "--plan", "--simulation"] {
+        assert!(help.contains(option), "missing readiness option {option}");
+    }
 }
 
 #[test]
@@ -168,8 +186,9 @@ fn init_keeps_captured_stdout_machine_readable() {
         "created-with-cli = \"{}\"",
         env!("CARGO_PKG_VERSION")
     )));
-    assert!(metadata.contains("version = \"1.3.0\""));
+    assert!(metadata.contains("version = \"2.0.0\""));
     assert!(destination.0.join(".env.example").is_file());
+    assert!(destination.0.join(".gas-snapshot").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());
     assert!(
         destination

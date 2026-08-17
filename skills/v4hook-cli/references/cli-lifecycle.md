@@ -32,9 +32,12 @@ analysis with Foundry lint.
 ## Check
 
 Run `v4hook check --config <config>` after focused Foundry tests. It must cover formatting, lint,
-static analysis, build, unit, fuzz, and invariant gates. A filter that executes no matching tests
-is a failure, not a pass. A skipped test is also a failure. Inspect the emitted test summaries and
-require at least 1,000 cases for every fuzz test and 256 campaigns at depth 500 for every invariant.
+structured Slither, build, code size, the committed gas snapshot, unit, fuzz, and invariant gates.
+The CLI owns Slither's dependency filter, JSON and fail flags. Add an exact fingerprint plus a
+non-empty review reason only for a confirmed lower-severity false positive; high findings and stale
+allowances fail. A Foundry filter that executes no matching tests is a failure, and a skipped test
+is also a failure. Inspect emitted summaries and require at least 1,000 cases for every fuzz test
+and 256 campaigns at depth 500 for every invariant.
 
 The check stops at the first failed command. When a configured tool is unavailable, do not rewrite
 the config to bypass it: preserve the command, run later gates individually, and report the exact
@@ -106,6 +109,10 @@ Run standalone `simulate` when its separate one-shot evidence is itself required
   narrow Anvil's allowed origin in `simulation.anvilArgs` when the app has a stable origin.
 - Use project-configured scenario commands for hook-specific Universal Router, Permit2 and
   `hookData` behavior. Record a seed and evidence so failures reproduce.
+- Write only `v4hook.devnet-scenario-report.v1` with the submitted transaction hashes to the path in
+  `V4HOOK_SCENARIO_REPORT`. Configure expected transaction/sender counts, allowed targets, required
+  hook events and reserved account indices. Require evidence v2 to prove every managed-account
+  transaction in the scenario block range was reported, mined successfully and matched the policy.
 - For dependent broadcast calls, confirm receipts sequentially and give price/slippage deadlines a
   bounded future window; `block.timestamp` itself can expire between simulation and broadcast.
 - Use strict interior v4 price limits (`MIN_SQRT_PRICE + 1` and `MAX_SQRT_PRICE - 1`). For
@@ -119,6 +126,8 @@ Run standalone `simulate` when its separate one-shot evidence is itself required
 - `devnet status`, `reset`, `export`, `run` and `down` must verify process ownership and devnet chain
   identity before operating. `down` must never signal an unverified PID.
 - `devnet reset` discards interactive state, restores the pinned fork and reruns the plan bootstrap.
+- Use `devnet down --purge-generated` only when debugging artifacts are no longer needed. It removes
+  the digest-matching manifest and state-owned Anvil log, not arbitrary project files.
 
 The generated web manifest is safe to commit only if the project intentionally wants a local-only
 fixture, but the default `.v4hook/` location is ignored and should normally remain ephemeral.
@@ -148,6 +157,11 @@ first launch, and small live swaps before increasing exposure.
 
 ## Readiness closure
 
+Run `v4hook readiness --config <config>` for configuration closure, add `--plan <plan>` for local
+closure, and add `--simulation <evidence>` for testnet closure. The command validates digests and
+required gate/stage evidence. Its launch stage deliberately remains external: a local file or agent
+claim cannot certify an independent audit, monitoring, or live authorization.
+
 Classify completion precisely:
 
 - **Locally ready:** format, build, lint, static analysis, unit, fuzz, invariant, integration, code
@@ -159,3 +173,11 @@ Classify completion precisely:
 
 External audit findings, RPC access, finalized economic inputs and live authorization cannot be
 manufactured by an implementation loop. Report them as stage gates without claiming readiness.
+
+## Operational handoff
+
+Keep a short ledger while working: current commit and plan digest, active failing command, every
+long-lived PID/port/launch-agent label, temporary repository, and generated evidence path. Give
+phase-level updates during long gates instead of restarting them blindly. Before the final report,
+either identify each service intentionally left running for the user or stop it, verify its listener
+is closed, purge state-owned artifacts when requested, and remove or hand off every test repository.
