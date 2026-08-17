@@ -21,7 +21,7 @@ use crate::{
     util::status,
 };
 
-const PRESERVED_PATHS: [&str; 10] = [
+const PRESERVED_PATHS: [&str; 20] = [
     ".env.example",
     ".github/workflows/test.yml",
     ".gitignore",
@@ -31,7 +31,23 @@ const PRESERVED_PATHS: [&str; 10] = [
     "remappings.txt",
     "script/00_DeployHook.s.sol",
     "script/base/BaseScript.sol",
+    "test/Counter.t.sol",
+    "test/utils/BaseTest.sol",
+    "test/utils/libraries/EasyPosm.t.sol",
+    "test/utils/v4hook-testkit/PROVENANCE.md",
+    "test/utils/v4hook-testkit/V4Bindings.sol",
+    "test/utils/v4hook-testkit/V4HookTestkit.sol",
+    "test/utils/v4hook-testkit/artifacts/DeployHelper.sol",
+    "test/utils/v4hook-testkit/artifacts/Permit2.sol",
+    "test/utils/v4hook-testkit/artifacts/V4PoolManager.sol",
+    "test/utils/v4hook-testkit/artifacts/V4PositionManager.sol",
     "v4hook.config.example.json",
+];
+
+const REMOVED_UPSTREAM_PATHS: [&str; 3] = [
+    "script/03_Swap.s.sol",
+    "script/testing/00_DeployV4.s.sol",
+    "test/utils/Deployers.sol",
 ];
 
 pub struct TemplateRefreshInput<'a> {
@@ -51,6 +67,31 @@ pub struct TemplateRefreshReport {
     pub dependencies: BTreeMap<String, String>,
     pub destination: String,
     pub preserved_paths: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateSealReport {
+    pub template_version: String,
+    pub destination: String,
+    pub manifest_digest: String,
+}
+
+pub fn seal_template(repository: &Path) -> Result<TemplateSealReport> {
+    let repository_root = fs::canonicalize(repository)
+        .with_context(|| format!("resolve {}", repository.display()))?;
+    if !repository_root.join("Cargo.toml").is_file()
+        || !repository_root.join("src/main.rs").is_file()
+    {
+        bail!("template seal must run against the v4hook CLI repository")
+    }
+    let destination = repository_root.join("assets/v4-template");
+    let (metadata, _) = seal_scaffold(&destination)?;
+    Ok(TemplateSealReport {
+        template_version: metadata.template.version,
+        destination: destination.to_string_lossy().into_owned(),
+        manifest_digest: metadata.template.manifest_digest,
+    })
 }
 
 #[derive(Deserialize)]
@@ -302,7 +343,6 @@ fn resolve_dependencies(
 fn prune_dependency(name: &str, root: &Path) -> Result<()> {
     let kept: &[&str] = match name {
         "forge-std" => &["src", "LICENSE-APACHE", "LICENSE-MIT"],
-        "hookmate" => &["src", "LICENSE", "LICENSE.md"],
         "openzeppelin-contracts" => &["contracts", "LICENSE"],
         "permit2" | "solmate" | "uniswap-hooks" | "v4-periphery" => &["src", "LICENSE"],
         "v4-core" => &["src", "test/utils", "licenses"],
@@ -393,6 +433,9 @@ fn preserve_v4hook_files(current: &Path, next: &Path) -> Result<()> {
             fs::create_dir_all(parent)?;
         }
         fs::copy(source, destination)?;
+    }
+    for relative in REMOVED_UPSTREAM_PATHS {
+        remove_if_exists(&next.join(relative))?;
     }
     Ok(())
 }

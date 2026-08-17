@@ -9,6 +9,13 @@ Use this reference when editing a v4hook-managed Foundry project.
 - Preserve unrelated user changes in a dirty worktree.
 - Preview scaffold updates before applying them when user files may conflict.
 - Read remappings and actual base classes instead of relying on online import paths.
+- Treat Hookmate as third-party scaffold/test tooling when it is present. Its address constants and
+  `V4Router04` are not authoritative live deployment data and the router is not an ABI-compatible
+  substitute for Uniswap Universal Router. The bundled first-party `v4hook-testkit` retains only
+  attributed, pinned local fixture bytecode and Uniswap v4-core's `PoolSwapTest`. Use the official
+  registry and plan-bound addresses for remote networks.
+- Verify router identity by address, deployed code, and ABI. A helper with a router-like name or an
+  overlapping swap method is not evidence that it exercises the production integration.
 
 ## Keep these artifacts aligned
 
@@ -24,6 +31,10 @@ Use this reference when editing a v4hook-managed Foundry project.
 Return-delta permissions require their parent callback. Let configuration validation and
 `v4hook plan` derive address flags; never hardcode a salt or predicted address as a shortcut.
 
+Treat signer identity as part of the integration contract. A broadcast script may group calls only
+when one signer is authorized for all of them. Split registrar-only, treasury-only, owner-only, and
+admin-only operations into separate stages when the roles differ.
+
 Keep the active config and tracked `v4hook.config.example.json` aligned for non-secret contract
 identity, constructor encoding, permissions, checks, scripts, and pool behavior. Put RPC values and
 other secrets only in ignored local state or environment variables.
@@ -32,7 +43,12 @@ other secrets only in ignored local state or environment variables.
 
 - Never replace Slither or another configured gate with `forge lint` because the tool is missing.
   Preserve the gate, run the remaining commands individually, and report the missing tool.
+- Filter pinned `vendor/` paths from Slither detector output, fail on high-severity project
+  findings, and keep an explicit triage for accepted lower-severity false positives. Do not ignore
+  dependency pinning or compiler-known-bug review merely because vendor detector noise is filtered.
 - Never reduce fuzz runs, invariant depth, matching filters, or assertions to make a check pass.
+- Never catch an expected revert inside `broadcast` or `startBroadcast`; Foundry records calls at
+  that depth as transactions. Move the probe outside broadcast or use a read-only quoter.
 - If `forge lint` leaves ABI-only artifacts and a later Foundry test reports no tests, run
   `forge build --force` and rerun the original gate. Add `--force` to a configured test command only
   when the cache failure is reproduced; still verify that matching tests executed.
@@ -61,6 +77,8 @@ Cover at least:
 
 Add adversarial token and reentrancy cases when the hook transfers tokens or calls external code.
 Increase fuzz depth for return deltas, custom curves, custody, or privileged fee changes.
+If an invariant handler catches reverts, count attempted and successful actions and assert the
+expected success relationship. A nonzero-call assertion alone can pass while every action fails.
 
 ## Wire simulation honestly
 

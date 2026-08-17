@@ -8,12 +8,12 @@ use crate::{
     config::{load_config, rpc_url_from_env},
     deploy::{verify_hook_at_rpc, verify_hook_deployment, verify_network_at_rpc},
     model::{CommandEvidence, DeploymentPlan, PoolPlan, PoolSimulationEvidence},
-    plan::{absolute_path, read_deployment_plan, verify_plan_inputs},
+    plan::{absolute_path, network_contract_environment, read_deployment_plan, verify_plan_inputs},
     process::{FoundryTestKind, redact_command, require_foundry_tests, require_success},
     rpc::{block_hash, block_number, chain_id},
     util::{
         assert_digest, calculate_digest, interpolate, normalize_address, now_iso, read_json,
-        sha256_bytes, status, write_json,
+        requires_mainnet_acknowledgement, sha256_bytes, status, write_json,
     },
 };
 
@@ -110,8 +110,13 @@ fn pool_variables(
     ]))
 }
 
-fn pool_env(pool: &PoolPlan, sender: &str) -> BTreeMap<String, String> {
-    BTreeMap::from([
+fn pool_env(
+    deployment: &DeploymentPlan,
+    pool: &PoolPlan,
+    sender: &str,
+) -> Result<BTreeMap<String, String>> {
+    let mut environment = network_contract_environment(&deployment.network)?;
+    environment.extend([
         ("V4HOOK_SIMULATOR_ADDRESS".to_owned(), sender.to_owned()),
         ("V4HOOK_POOL_PLAN_DIGEST".to_owned(), pool.digest.clone()),
         ("V4HOOK_HOOK_ADDRESS".to_owned(), pool.hook_address.clone()),
@@ -145,7 +150,8 @@ fn pool_env(pool: &PoolPlan, sender: &str) -> BTreeMap<String, String> {
         ),
         ("V4HOOK_RECIPIENT".to_owned(), pool.pool.recipient.clone()),
         ("V4HOOK_HOOK_DATA".to_owned(), pool.pool.hook_data.clone()),
-    ])
+    ]);
+    Ok(environment)
 }
 
 pub struct SimulatePoolInput<'a> {
@@ -183,7 +189,7 @@ pub fn simulate_pool(input: &SimulatePoolInput<'_>) -> Result<PoolSimulationEvid
         let pool_plan_path = absolute_path(input.pool_plan)?;
         let mut variables = pool_variables(&deployment, &pool, &anvil.sender, &pool_plan_path)?;
         variables.insert("anvilRpc".to_owned(), anvil.rpc_url.clone());
-        let mut environment = pool_env(&pool, &anvil.sender);
+        let mut environment = pool_env(&deployment, &pool, &anvil.sender)?;
         environment.insert("V4HOOK_ANVIL_RPC_URL".to_owned(), anvil.rpc_url.clone());
         let mut commands = Vec::new();
         for step in &pool.pool.simulation_steps {
@@ -257,8 +263,11 @@ pub fn launch_pool(input: &LaunchPoolInput<'_>) -> Result<Value> {
     if pool.deployment_plan_digest != deployment.digest {
         bail!("pool plan belongs to a different deployment plan");
     }
-    if pool.chain_id == 1 && !input.mainnet {
-        bail!("Ethereum mainnet pool launch requires --mainnet");
+    if requires_mainnet_acknowledgement(pool.chain_id) && !input.mainnet {
+        bail!(
+            "chain {} mainnet pool launch requires --mainnet",
+            pool.chain_id
+        );
     }
     let expected = format!(
         "POOL:{}:{}:{}",
@@ -300,7 +309,7 @@ pub fn launch_pool(input: &LaunchPoolInput<'_>) -> Result<Value> {
         sender.clone(),
         "--broadcast".to_owned(),
     ];
-    let mut environment = pool_env(&pool, &sender);
+    let mut environment = pool_env(&deployment, &pool, &sender)?;
     environment.insert("FOUNDRY_ETH_RPC_URL".to_owned(), rpc_url.clone());
     environment.insert("ETH_RPC_URL".to_owned(), rpc_url);
     status("Broadcasting the planned pool launch...");

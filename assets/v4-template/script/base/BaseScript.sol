@@ -6,17 +6,10 @@ import {IERC20} from "forge-std/interfaces/IERC20.sol";
 
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
-import {IPermit2} from "permit2/src/interfaces/IPermit2.sol";
-
-import {IUniswapV4Router04} from "hookmate/interfaces/router/IUniswapV4Router04.sol";
-import {AddressConstants} from "hookmate/constants/AddressConstants.sol";
-
-import {Deployers} from "test/utils/Deployers.sol";
+import {V4Bindings} from "test/utils/v4hook-testkit/V4Bindings.sol";
 
 /// @notice Shared configuration between scripts
-contract BaseScript is Script, Deployers {
+contract BaseScript is Script, V4Bindings {
     address immutable deployerAddress;
 
     /////////////////////////////////////
@@ -39,8 +32,12 @@ contract BaseScript is Script, Deployers {
         }
         hookContract = IHooks(configuredHook);
 
-        // Make sure artifacts are available, either deploy or configure.
-        deployArtifacts();
+        // These addresses are supplied from the verified v4hook deployment plan.
+        _bindV4(
+            vm.envAddress("V4HOOK_PERMIT2"),
+            vm.envAddress("V4HOOK_POOL_MANAGER"),
+            vm.envAddress("V4HOOK_POSITION_MANAGER")
+        );
 
         deployerAddress = getDeployer();
 
@@ -49,20 +46,11 @@ contract BaseScript is Script, Deployers {
         vm.label(address(permit2), "Permit2");
         vm.label(address(poolManager), "V4PoolManager");
         vm.label(address(positionManager), "V4PositionManager");
-        vm.label(address(swapRouter), "V4SwapRouter");
 
         vm.label(address(token0), "Currency0");
         vm.label(address(token1), "Currency1");
 
         vm.label(address(hookContract), "HookContract");
-    }
-
-    function _etch(address target, bytes memory bytecode) internal override {
-        if (block.chainid == 31337) {
-            vm.rpc("anvil_setCode", string.concat('["', vm.toString(target), '",', '"', vm.toString(bytecode), '"]'));
-        } else {
-            revert("Unsupported etch on this network");
-        }
     }
 
     function getCurrencies() internal view returns (Currency, Currency) {

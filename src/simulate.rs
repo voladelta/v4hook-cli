@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, path::Path};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 
 use crate::{
     anvil::start_anvil,
@@ -9,7 +9,7 @@ use crate::{
     config::{load_config, rpc_url_from_env},
     model::{CommandEvidence, SimulationEvidence},
     permissions::probe_hook_permissions,
-    plan::{absolute_path, read_deployment_plan, verify_plan_inputs},
+    plan::{absolute_path, network_contract_environment, read_deployment_plan, verify_plan_inputs},
     process::{FoundryTestKind, redact_command, require_foundry_tests, require_success},
     rpc::{block_hash, code_at},
     util::{calculate_digest, interpolate, now_iso, sha256_bytes, status, write_json},
@@ -66,7 +66,8 @@ pub fn simulate_deployment(
             ),
             ("chainId".to_owned(), plan.network.chain_id.to_string()),
         ]);
-        let environment = BTreeMap::from([
+        let mut environment = network_contract_environment(&plan.network)?;
+        environment.extend([
             ("V4HOOK_ANVIL_RPC_URL".to_owned(), anvil.rpc_url.clone()),
             ("V4HOOK_SIMULATOR_ADDRESS".to_owned(), anvil.sender.clone()),
             (
@@ -78,15 +79,6 @@ pub fn simulate_deployment(
             (
                 "V4HOOK_CONSTRUCTOR_ARGS".to_owned(),
                 plan.artifact.constructor_args.clone(),
-            ),
-            (
-                "V4HOOK_POOL_MANAGER".to_owned(),
-                plan.network
-                    .contracts
-                    .get("poolManager")
-                    .context("deployment plan is missing poolManager")?
-                    .address
-                    .clone(),
             ),
         ]);
         let mut commands = Vec::new();

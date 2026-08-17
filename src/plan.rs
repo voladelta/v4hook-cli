@@ -22,6 +22,31 @@ use crate::{
 
 pub const RUST_TOOLCHAIN: &str = "1.97.1";
 
+const CONTRACT_ENV_BINDINGS: [(&str, &str); 7] = [
+    ("poolManager", "V4HOOK_POOL_MANAGER"),
+    ("positionManager", "V4HOOK_POSITION_MANAGER"),
+    ("universalRouter", "V4HOOK_UNIVERSAL_ROUTER"),
+    ("quoter", "V4HOOK_QUOTER"),
+    ("stateView", "V4HOOK_STATE_VIEW"),
+    ("permit2", "V4HOOK_PERMIT2"),
+    ("create2Deployer", "V4HOOK_CREATE2_DEPLOYER"),
+];
+
+pub fn network_contract_environment(network: &NetworkIdentity) -> Result<BTreeMap<String, String>> {
+    CONTRACT_ENV_BINDINGS
+        .iter()
+        .map(|(contract, variable)| {
+            let address = network
+                .contracts
+                .get(*contract)
+                .with_context(|| format!("deployment plan is missing {contract}"))?
+                .address
+                .clone();
+            Ok(((*variable).to_owned(), address))
+        })
+        .collect()
+}
+
 pub fn cli_identity() -> String {
     format!(
         "v4hook {} (rustc {RUST_TOOLCHAIN})",
@@ -240,5 +265,56 @@ pub fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
         Ok(path.to_path_buf())
     } else {
         Ok(std::env::current_dir()?.join(path))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn network_with_contracts(names: &[&str]) -> NetworkIdentity {
+        let contracts = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                (
+                    (*name).to_owned(),
+                    ContractIdentity {
+                        address: format!("0x{index:040x}"),
+                        code_hash: "0x01".to_owned(),
+                    },
+                )
+            })
+            .collect();
+        NetworkIdentity {
+            chain_id: 4663,
+            rpc_url_env: "ROBINHOOD_MAINNET_RPC_URL".to_owned(),
+            fork_block_number: 1,
+            fork_block_hash: "0x01".to_owned(),
+            contracts,
+        }
+    }
+
+    #[test]
+    fn exports_every_plan_bound_contract_address() {
+        let names = CONTRACT_ENV_BINDINGS
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>();
+        let environment = network_contract_environment(&network_with_contracts(&names)).unwrap();
+
+        assert_eq!(environment.len(), CONTRACT_ENV_BINDINGS.len());
+        for (index, (_, variable)) in CONTRACT_ENV_BINDINGS.iter().enumerate() {
+            assert_eq!(environment[*variable], format!("0x{index:040x}"));
+        }
+    }
+
+    #[test]
+    fn rejects_an_incomplete_network_binding() {
+        let error = network_contract_environment(&network_with_contracts(&["poolManager"]))
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("positionManager"));
     }
 }

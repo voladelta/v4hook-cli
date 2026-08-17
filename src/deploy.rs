@@ -1,6 +1,6 @@
-use std::{collections::BTreeMap, path::Path};
+use std::path::Path;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
 use crate::{
@@ -8,11 +8,14 @@ use crate::{
     config::rpc_url_from_env,
     model::DeploymentPlan,
     permissions::probe_hook_permissions,
-    plan::{absolute_path, read_deployment_plan, verify_plan_inputs},
+    plan::{absolute_path, network_contract_environment, read_deployment_plan, verify_plan_inputs},
     process::{redact_command, require_success},
     rpc::{block_number, chain_id, code_at},
     simulate::simulate_deployment,
-    util::{normalize_address, now_iso, sha256_bytes, status, write_json},
+    util::{
+        normalize_address, now_iso, requires_mainnet_acknowledgement, sha256_bytes, status,
+        write_json,
+    },
 };
 
 pub fn verify_network_at_rpc(
@@ -92,8 +95,11 @@ pub fn deploy_hook(input: &DeployInput<'_>) -> Result<Value> {
     let plan_file = absolute_path(input.plan_file)?;
     let plan = read_deployment_plan(&plan_file)?;
     verify_plan_inputs(&plan)?;
-    if plan.network.chain_id == 1 && !input.mainnet {
-        bail!("Ethereum mainnet deployment requires --mainnet");
+    if requires_mainnet_acknowledgement(plan.network.chain_id) && !input.mainnet {
+        bail!(
+            "chain {} mainnet deployment requires --mainnet",
+            plan.network.chain_id
+        );
     }
     let expected_confirmation = format!(
         "DEPLOY:{}:{}",
@@ -124,7 +130,8 @@ pub fn deploy_hook(input: &DeployInput<'_>) -> Result<Value> {
     if input.verify {
         command.push("--verify".to_owned());
     }
-    let environment = BTreeMap::from([
+    let mut environment = network_contract_environment(&plan.network)?;
+    environment.extend([
         (
             "V4HOOK_PLAN_PATH".to_owned(),
             plan_file.to_string_lossy().into_owned(),
@@ -134,15 +141,6 @@ pub fn deploy_hook(input: &DeployInput<'_>) -> Result<Value> {
         (
             "V4HOOK_PREDICTED_ADDRESS".to_owned(),
             plan.hook.predicted_address.clone(),
-        ),
-        (
-            "V4HOOK_POOL_MANAGER".to_owned(),
-            plan.network
-                .contracts
-                .get("poolManager")
-                .context("deployment plan is missing poolManager")?
-                .address
-                .clone(),
         ),
         ("FOUNDRY_ETH_RPC_URL".to_owned(), rpc_url.clone()),
         ("ETH_RPC_URL".to_owned(), rpc_url.clone()),

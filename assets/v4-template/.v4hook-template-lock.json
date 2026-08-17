@@ -1,12 +1,11 @@
 {
   "schemaVersion": "v4hook.template-lock.v2",
-  "templateVersion": "1.1.1",
-  "snapshot": "v4hook-template-1.1.1",
+  "templateVersion": "1.2.0",
+  "snapshot": "v4hook-template-1.2.0",
   "repository": "Uniswap/v4-template",
   "commit": "1fbf95547791f0821a170b88c750cb2e04e6818b",
   "dependencies": {
     "forge-std": "8bbcf6e3f8f62f419e5429a0bd89331c85c37824",
-    "hookmate": "33408fbc15e083eb0bc4205fa37cb6ba0a926f44",
     "openzeppelin-contracts": "e4f70216d759d8e6a64144a9e1f7bbeed78e7079",
     "permit2": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219",
     "solmate": "4b47a19038b798b4a33d9749d25e570443520647",
@@ -16,7 +15,7 @@
   },
   "files": {
     ".env.example": {
-      "sha256": "sha256:1c1eddcc0e9c3aff03fc170b49bcb2fef743967b069c5d2c84e8659746dc896a",
+      "sha256": "sha256:fec027f6ce6fce443166ca35e12e30b04dc3a2da7da79ae68a721e5eb7f47092",
       "ownership": "managed"
     },
     ".github/workflows/test.yml": {
@@ -36,7 +35,7 @@
       "ownership": "managed"
     },
     "README.md": {
-      "sha256": "sha256:2af2b3ed6b8a0842407838d32263ee3332e450271c48cc9bb715663dff7ac484",
+      "sha256": "sha256:814ef552f29d04aba6f46b321224303eef69816baaee51544320905683afd789",
       "ownership": "seed"
     },
     "foundry.toml": {
@@ -44,7 +43,7 @@
       "ownership": "managed"
     },
     "remappings.txt": {
-      "sha256": "sha256:bc8635489f0d6b4cb08701dc268fee50469218a696c0685eac54c16ce259c420",
+      "sha256": "sha256:01a8846e998d2638398e20fe294567ed5c943fd87e59bd1833b39cbd745606e8",
       "ownership": "managed"
     },
     "script/00_DeployHook.s.sol": {
@@ -59,20 +58,12 @@
       "sha256": "sha256:ab1198ef0e781cb209a72bfd99c10902efd3ce046c1f03a55225121fe2ffa57a",
       "ownership": "managed"
     },
-    "script/03_Swap.s.sol": {
-      "sha256": "sha256:4bc12da9f0b5db02cbaf34bcff438d2327d09faca795e8a9db28edff5b58fe5c",
-      "ownership": "managed"
-    },
     "script/base/BaseScript.sol": {
-      "sha256": "sha256:458f822881c413770a9d6a11a3ed9a6df621b525d82a21e6f38790282aa8a898",
+      "sha256": "sha256:9b03880565f93530ae448821191719bba95aece672a79ee5a687d0208134ab92",
       "ownership": "managed"
     },
     "script/base/LiquidityHelpers.sol": {
       "sha256": "sha256:fd1de6fcf2cd36ddb502c99e9639c7d3d5e1951962e8c43cf34aea115c620e19",
-      "ownership": "managed"
-    },
-    "script/testing/00_DeployV4.s.sol": {
-      "sha256": "sha256:f460ffa3371f34a2d4fe6cd51e83e443c38c05bf7ab780229b56f0ba3e834dfc",
       "ownership": "managed"
     },
     "src/Counter.sol": {
@@ -80,15 +71,11 @@
       "ownership": "seed"
     },
     "test/Counter.t.sol": {
-      "sha256": "sha256:3310cad2caa38de6dcce38921cdaf12554d15a19cdf14a35d4abec147b25e130",
+      "sha256": "sha256:bc5ba20c01db495add5f8b3b050824f2360a350a7f26ab1d59eeeaa89b64fd20",
       "ownership": "seed"
     },
     "test/utils/BaseTest.sol": {
-      "sha256": "sha256:13d527ddd61d1f4fd656954b71c9b28db6c550212ec66f47595bd9d6d2f9c6d2",
-      "ownership": "seed"
-    },
-    "test/utils/Deployers.sol": {
-      "sha256": "sha256:eabf2ca56b1e2bf2a5d3fbfabf77c30c093a4070c09b1a10cdfe50e6df0bd654",
+      "sha256": "sha256:dbca5ac1c1284d753149aa1e095a7bcc98daa6972b60964dc7a7d1be76fb90df",
       "ownership": "seed"
     },
     "test/utils/libraries/EasyPosm.sol": {
@@ -96,11 +83,39 @@
       "ownership": "seed"
     },
     "test/utils/libraries/EasyPosm.t.sol": {
-      "sha256": "sha256:dc290c9a371c6b12be14639e9eb5cea52bf6ea7ce51b5efec649bcc976d3a164",
+      "sha256": "sha256:1023339b6d2a1c6c01ba0392607132c161829d374608ec61835d707e4d2c3963",
+      "ownership": "seed"
+    },
+    "test/utils/v4hook-testkit/PROVENANCE.md": {
+      "sha256": "sha256:2a37099f654e53c86b39c192e96aba93ffbd4e637b8ed77c43d6a9090e1abfed",
+      "ownership": "seed"
+    },
+    "test/utils/v4hook-testkit/V4Bindings.sol": {
+      "sha256": "sha256:87317b0ca1426cc69dee77864281edec559f41db3452892fe06f47ab4f989738",
+      "ownership": "seed"
+    },
+    "test/utils/v4hook-testkit/V4HookTestkit.sol": {
+      "sha256": "sha256:055e3535c0727de4de311481ac399a1cb39fe72ed0a4946f618ed3edc83f75d8",
+      "ownership": "seed"
+    },
+    "test/utils/v4hook-testkit/artifacts/DeployHelper.sol": {
+      "sha256": "sha256:9fede290e688f1e4d4fc879fbbc02305da68b333740905b48024cc3dbdb51994",
+      "ownership": "seed"
+    },
+    "test/utils/v4hook-testkit/artifacts/Permit2.sol": {
+      "sha256": "sha256:c49ffdbcbce725500eb8feb8523675cf8df13759df332ccec8e721d8650c28fc",
+      "ownership": "seed"
+    },
+    "test/utils/v4hook-testkit/artifacts/V4PoolManager.sol": {
+      "sha256": "sha256:c3fb49b269638419952bd98dafcf5f74efa7a3ee842bc64c50dbe976257efaab",
+      "ownership": "seed"
+    },
+    "test/utils/v4hook-testkit/artifacts/V4PositionManager.sol": {
+      "sha256": "sha256:f992b4971738bee98c1551f9ee2806bd0d655e019faed646ae88ea1965a1e1b0",
       "ownership": "seed"
     },
     "v4hook.config.example.json": {
-      "sha256": "sha256:61c5ced9413f6ede7c468d4a976b3f61248f20bcfa0e79e5a2473030c127295c",
+      "sha256": "sha256:2e7c65affe944ddf939559b0edfad5639aae8cddb2a9a22c0956dd9a657f19b0",
       "ownership": "managed"
     },
     "vendor/forge-std/LICENSE-APACHE": {
@@ -221,42 +236,6 @@
     },
     "vendor/forge-std/src/safeconsole.sol": {
       "sha256": "sha256:ed11aa2efc83fa8e575215a11dd7a9be385cf49dacbc379630168d7334899e46",
-      "ownership": "generated"
-    },
-    "vendor/hookmate/src/artifacts/DeployHelper.sol": {
-      "sha256": "sha256:8127b4095f6d062330aa35e333f14e885cceda1436ee944b38d5a4d69f707b8d",
-      "ownership": "generated"
-    },
-    "vendor/hookmate/src/artifacts/Permit2.sol": {
-      "sha256": "sha256:dbb8d351326d2d848612bdc29a638ef569b775f9dde45a5065802c1aa46121b9",
-      "ownership": "generated"
-    },
-    "vendor/hookmate/src/artifacts/V4PoolManager.sol": {
-      "sha256": "sha256:af391e7f213cc8a5f6f09f56796dc4d293012fe7d00c66b0279b5e4639e2dc0f",
-      "ownership": "generated"
-    },
-    "vendor/hookmate/src/artifacts/V4PositionManager.sol": {
-      "sha256": "sha256:5cdc36b566657397ce9a826025b291a6cefd1c571b5ccc293afdc75cc6e63f76",
-      "ownership": "generated"
-    },
-    "vendor/hookmate/src/artifacts/V4Router.sol": {
-      "sha256": "sha256:fbbfc69dfd449a2a4f627eb39b3ab379c8d528727bdc2003eb82e6ca6a68655c",
-      "ownership": "generated"
-    },
-    "vendor/hookmate/src/constants/AddressConstants.sol": {
-      "sha256": "sha256:58041a9980084ec4aa2c32a2c3c96ef7a48487488367af0c5ca78edaa9edc9d5",
-      "ownership": "generated"
-    },
-    "vendor/hookmate/src/interfaces/router/IUniswapV4Router04.sol": {
-      "sha256": "sha256:9fabfd2623a8937297dda24b03e3520e00397a321697a584a3a1f213a2fad475",
-      "ownership": "generated"
-    },
-    "vendor/hookmate/src/interfaces/router/PathKey.sol": {
-      "sha256": "sha256:90813fec8be53b30d7367ca9bdd27b8b1f647c2ab4e0823a01cedb875a1c171f",
-      "ownership": "generated"
-    },
-    "vendor/hookmate/src/test/utils/SwapFeeEventAsserter.sol": {
-      "sha256": "sha256:c7ebd88a06c27be237229994a4ba7f375b04e74abcc053aaff8808a420233b15",
       "ownership": "generated"
     },
     "vendor/openzeppelin-contracts/LICENSE": {

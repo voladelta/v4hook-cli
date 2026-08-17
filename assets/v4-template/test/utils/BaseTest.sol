@@ -4,16 +4,16 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
-import {Deployers} from "./Deployers.sol";
+import {V4HookTestkit} from "./v4hook-testkit/V4HookTestkit.sol";
 
-contract BaseTest is Test, Deployers {
+contract BaseTest is Test, V4HookTestkit {
     function deployArtifactsAndLabel() internal {
-        deployArtifacts();
+        deployV4Testkit();
 
         vm.label(address(permit2), "Permit2");
         vm.label(address(poolManager), "V4PoolManager");
         vm.label(address(positionManager), "V4PositionManager");
-        vm.label(address(swapRouter), "V4SwapRouter");
+        vm.label(address(poolSwapRouter), "PoolSwapTest");
     }
 
     function deployCurrencyPair() internal virtual override returns (Currency currency0, Currency currency1) {

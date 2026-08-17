@@ -36,7 +36,7 @@ use crate::{
     pool::{LaunchPoolInput, SimulatePoolInput, create_pool_plan, launch_pool, simulate_pool},
     scaffold::{ScaffoldUpdateInput, update_scaffold},
     simulate::simulate_deployment,
-    template::{TemplateRefreshInput, refresh_template},
+    template::{TemplateRefreshInput, refresh_template, seal_template},
     util::write_json,
 };
 
@@ -137,6 +137,11 @@ enum TemplateCommand {
         source: String,
         #[arg(long, default_value = "main")]
         reference: String,
+        #[arg(long, default_value = ".")]
+        repository: PathBuf,
+    },
+    /// Recompute the bundled scaffold manifest after maintained overlay changes.
+    Seal {
         #[arg(long, default_value = ".")]
         repository: PathBuf,
     },
@@ -279,6 +284,14 @@ fn run() -> Result<i32> {
                         "Prepared template {} from {} at {}.",
                         result.template_version, result.source, result.commit
                     ),
+                    force_json,
+                )?;
+            }
+            TemplateCommand::Seal { repository } => {
+                let result = seal_template(&repository)?;
+                print_output(
+                    &result,
+                    &format!("Sealed template {}.", result.template_version),
                     force_json,
                 )?;
             }

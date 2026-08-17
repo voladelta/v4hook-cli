@@ -124,6 +124,10 @@ pub fn now_iso() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
+pub fn requires_mainnet_acknowledgement(chain_id: u64) -> bool {
+    matches!(chain_id, 1 | 4663)
+}
+
 pub fn status(message: &str) {
     if io::stderr().is_terminal() {
         eprintln!("{message}");
@@ -181,5 +185,13 @@ mod tests {
                 .to_string()
                 .contains("unknown command placeholder")
         );
+    }
+
+    #[test]
+    fn known_mainnets_require_explicit_acknowledgement() {
+        assert!(requires_mainnet_acknowledgement(1));
+        assert!(requires_mainnet_acknowledgement(4663));
+        assert!(!requires_mainnet_acknowledgement(46630));
+        assert!(!requires_mainnet_acknowledgement(31337));
     }
 }

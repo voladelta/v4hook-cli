@@ -81,11 +81,19 @@ actions.
    `getHookPermissions()`, deployment configuration, CREATE2 flags, tests, and deployed probing.
 5. Update the contract, deployment script, constructor ABI, artifact path, active configuration,
    tracked example configuration, and test fixtures together. Keep secrets and private endpoints
-   out of the tracked example. Preserve the deployment script's `V4HOOK_HOOK_SALT` and
+   out of the tracked example. Non-keyed public RPC defaults are acceptable when their provider
+   documents them; label their rate limits and replace them with dedicated archive-capable
+   infrastructure before launch evidence. Preserve the deployment script's `V4HOOK_HOOK_SALT` and
    `V4HOOK_PREDICTED_ADDRESS` integration; let `v4hook plan` mine the address.
+   Use the scaffold's `v4hook-testkit` only for local fixtures. Remote scripts must consume the
+   plan-bound `V4HOOK_*` dependency addresses, and router tests must target the intended router ABI.
 6. Do not edit tests or replace, remove, or relax a configured verification gate merely to obtain a
    pass. Diagnose whether a failure is in the implementation, configuration, environment, existing
    project, or verification contract before repairing it.
+7. Model broadcast authority explicitly. Split stages when registration, treasury, ownership, or
+   administration require different signers. Never place an expected-to-revert diagnostic call
+   inside a Foundry `broadcast` or `startBroadcast` region; probe outside broadcast or use a
+   read-only quote path.
 
 Read [integration-contract.md](references/integration-contract.md) before changing Solidity,
 deployment scripts, tests, permissions, or config.
@@ -95,8 +103,23 @@ deployment scripts, tests, permissions, or config.
 Run the narrowest relevant test first. Then run the project gates proportionate to the change.
 For a completed hook implementation, finish with the configured format, build, unit, fuzz,
 invariant, and static-analysis checks. Ensure every configured Foundry filter executes real tests.
-If a required tool is unavailable, preserve its command, run the remaining gates individually, and
-report the blocked gate instead of substituting a weaker check.
+Treat the first full check as the start of a bounded repair loop:
+
+1. Classify each failure as implementation, configuration, script, test, local tooling, launch
+   input/network, live authority, or external assurance.
+2. Fix every locally actionable defect and rerun its narrow reproducer.
+3. Rerun the complete configured check and final `v4-security-foundations` review.
+4. Repeat until local gates pass and no known locally actionable defect remains.
+
+If Slither is missing, prefer `uv tool install slither-analyzer` when uv and tool installation are
+available. Use `uvx --from slither-analyzer slither .` for a one-off independent run. Do not install
+uv through a piped remote script without user authorization, and never substitute `forge lint` for
+Slither. If a required tool still cannot run, preserve its command, run the remaining gates
+individually, and report the exact external blocker.
+
+Do not use a residual-risk section to defer a fixable failure. Residual risks are uncertainties
+that remain after local remediation, such as unaudited value-critical logic; blockers are missing
+evidence or inputs required for the requested lifecycle stage.
 
 Read [cli-lifecycle.md](references/cli-lifecycle.md) before planning, simulating, deploying,
 verifying, or launching a pool. Preserve these invariants:
@@ -106,6 +129,12 @@ verifying, or launching a pool. Preserve these invariants:
 - Treat any source, config, artifact, toolchain, or relevant network change as plan invalidation.
 - Keep the worktree clean for planning without discarding or silently committing unrelated work.
 - Treat passing checks and fork evidence as necessary evidence, never as a security audit.
+
+Call a project locally ready only after the repair loop is clean. Call it testnet-ready only when
+sentinels are replaced, roles and broadcast stages are executable, `doctor`, `check`, `plan`, and
+`simulate` pass, code size and gas are reviewed, and the security checklist has no unresolved
+locally actionable item. Never call it launch-ready without the required independent review and
+explicit authority for each live action.
 
 ## Report completion
 

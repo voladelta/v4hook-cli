@@ -31,6 +31,34 @@ rm ~/.local/bin/v4hook
 
 The release profile favours runtime speed. It uses optimisation level 3, fat link-time optimisation and one code generation unit.
 
+## Install Slither with uv
+
+[uv](https://github.com/astral-sh/uv) is the recommended way to install and run Slither without
+mixing Python packages into the system interpreter.
+
+Install uv when it is not already available:
+
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Install Slither as a user-level tool so the default `v4hook check` configuration can invoke the
+`slither` executable:
+
+```sh
+uv tool install slither-analyzer
+```
+
+For a one-off analysis without installing the tool, run:
+
+```sh
+uvx --from slither-analyzer slither . --filter-paths 'vendor/' --fail-high
+```
+
+Do not replace the configured Slither gate with `forge lint`. Run both: Foundry lint catches
+compiler-aware style and safety warnings, while Slither provides a separate static-analysis pass.
+Review and document lower-severity findings even when `--fail-high` exits successfully.
+
 ## Create a hook project
 
 Create a project from the bundled Uniswap v4 scaffold:
@@ -48,7 +76,13 @@ The generated project contains:
 - `.v4hook-template-lock.json` with upstream revisions and file hashes
 - `v4hook.config.example.json` with the deployment, checks and simulation schema
 - one flattened `vendor/` directory without Git history or submodules
-- the official Foundry starter contracts, scripts and tests
+- the official Foundry starter contracts plus the first-party `v4hook-testkit`
+
+`v4hook-testkit` deploys pinned Permit2, PoolManager and PositionManager fixtures locally and swaps
+through Uniswap v4-core's `PoolSwapTest`. Its retained fixture bytecode records its Hookmate source
+commit and license. The scaffold intentionally excludes Hookmate's network address table and custom
+router: remote scripts receive verified contract addresses from the v4hook plan, and production
+router integrations must target the intended official ABI.
 
 Commit both metadata files. The CLI uses them to update the scaffold safely.
 
@@ -109,6 +143,13 @@ It downloads GitHub archives instead of cloning repositories. It then flattens t
 
 The refresh preserves the v4hook deployment integration. It tests the prepared scaffold before replacing `assets/v4-template`.
 
+After changing a maintained scaffold overlay without downloading a new upstream snapshot, bump the
+template version and reseal its file manifest:
+
+```sh
+v4hook template seal --repository .
+```
+
 The command does not commit or push changes. Review the diff and commit the updated scaffold with the new CLI release.
 
 Use semantic versions for templates:
@@ -148,7 +189,11 @@ Set the RPC variable named by `network.rpcUrlEnv` in your configuration. The CLI
 cp .env.example .env
 ```
 
-Put the endpoint in `.env`. Keep the variable name from `network.rpcUrlEnv`; the example uses `BASE_SEPOLIA_RPC_URL`. Do not commit `.env` or share one provider key across generated projects.
+The checked-in example already supplies rate-limited public Robinhood Chain and Ethereum endpoints.
+Keep the variable name from `network.rpcUrlEnv`; the example uses
+`ROBINHOOD_MAINNET_RPC_URL`. Before planning, verify the chain ID and access to the intended pinned
+block. Replace the public URL with a dedicated archive-capable provider for repeatable launch
+evidence. Do not commit authenticated URLs or share one provider key across generated projects.
 
 Then run:
 
@@ -165,6 +210,13 @@ v4hook simulate \
   --output .v4hook/deployment-evidence.json
 ```
 
+Treat the first check as the start of a repair loop, not the final report. Fix every locally
+actionable contract, script, configuration, test and analyzer finding, rerun the narrow failing
+gate, then rerun `v4hook check`. Create a plan only after local checks are clean and every
+project-specific placeholder has been replaced. A missing RPC, unfinalized launch input,
+independent audit or live-action authorization is an external readiness gate; do not misreport it
+as completed or bypass it to obtain a green result.
+
 The plan records the fork block and hashes the deployed Uniswap contracts. It also mines and checks the required CREATE2 address flags.
 
 Any source, configuration, artifact or network change makes the plan invalid.
@@ -175,21 +227,24 @@ Interactive commands print a concise result and write progress to stderr. Redire
 v4hook doctor --json --config v4hook.config.json
 ```
 
-## Deploy to Base Sepolia
+## Deploy to Robinhood Chain
 
-Base Sepolia is the recommended first live network for this project. Its chain ID is `84532`.
+The shipped live-network example targets Robinhood Chain mainnet, chain ID `4663`. The public RPC is
+`https://rpc.mainnet.chain.robinhood.com`; Robinhood documents it as rate-limited and unsuitable for
+production infrastructure. Use it for initial reads and local forks, then use a dedicated provider
+for launch evidence and broadcast.
 
 Check the current addresses in the [Uniswap v4 deployment registry](https://developers.uniswap.org/docs/protocols/v4/deployments) before you create a plan. Do not assume that Uniswap uses the same address on each chain.
 
-The example configuration uses these Base Sepolia addresses:
+The example configuration uses these Robinhood Chain addresses:
 
 | Contract | Address |
 | --- | --- |
-| PoolManager | `0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408` |
-| PositionManager | `0x4b2c77d209d3405f41a037ec6c77f7f5b8e2ca80` |
-| Universal Router | `0x492e6456d9528771018deb9e87ef7750ef184104` |
-| Quoter | `0x4a6513c898fe1b2d0e78d3b0e0a4a151589b1cba` |
-| StateView | `0x571291b572ed32ce6751a2cb2486ebee8defb9b4` |
+| PoolManager | `0x8366a39cc670b4001a1121b8f6a443a643e40951` |
+| PositionManager | `0x58daec3116aae6d93017baaea7749052e8a04fa7` |
+| Universal Router | `0x8876789976decbfcbbbe364623c63652db8c0904` |
+| Quoter | `0x8dc178efb8111bb0973dd9d722ebeff267c98f94` |
+| StateView | `0xf3334192d15450cdd385c8b70e03f9a6bd9e673b` |
 | Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` |
 | CREATE2 deployer | `0x4e59b44847b379578588920cA78FbF26c0B4956C` |
 
@@ -199,7 +254,9 @@ Use a separate testnet account. Import it into the Foundry keystore:
 cast wallet import deployer --interactive
 ```
 
-Get test ETH from a [Base Sepolia faucet](https://docs.base.org/base-chain/network-information/network-faucets). Copy the example environment file and fill in the RPC, explorer key and public deployer address:
+Robinhood Chain mainnet uses real ETH. Use a dedicated, minimally funded deployment account. Copy
+the example environment file and replace the public RPC with dedicated infrastructure before any
+broadcast:
 
 ```sh
 cp .env.example .env
@@ -208,7 +265,10 @@ set -a
 set +a
 ```
 
-The RPC and explorer values are credentials. The deployer address is public. Never add a private key, mnemonic or keystore password to `.env`; import the key interactively into Foundry instead. For production mainnet deployments, prefer a hardware wallet after the CLI supports the required signer flow.
+Non-keyed public RPC URLs and the deployer address are not secrets. Authenticated RPC URLs and
+explorer keys are credentials. Never add a private key, mnemonic or keystore password to `.env`;
+import the key interactively into Foundry instead. Prefer a hardware wallet after the CLI supports
+the required signer flow.
 
 Create and simulate a fresh plan. Then deploy the hook:
 
@@ -217,7 +277,8 @@ v4hook deploy \
   --plan .v4hook/deployment-plan.json \
   --account deployer \
   --sender "$DEPLOYER_ADDRESS" \
-  --confirm 'DEPLOY:84532:0xpredictedhook' \
+  --confirm 'DEPLOY:4663:0xpredictedhook' \
+  --mainnet \
   --verify
 ```
 
@@ -226,7 +287,7 @@ v4hook deploy \
 The deploy command performs these checks before broadcasting:
 
 - reruns all configured checks
-- starts Anvil at the exact planned Base Sepolia block
+- starts Anvil at the exact planned Robinhood Chain block
 - deploys the hook and representative pool on the fork
 - runs all 4 simulation steps
 - compares the simulated runtime code with the planned artifact
@@ -276,7 +337,8 @@ v4hook pool launch \
   --pool-plan .v4hook/pool-plan.json \
   --account deployer \
   --sender "$DEPLOYER_ADDRESS" \
-  --confirm 'POOL:84532:0xhook:sha256:pool-plan-digest'
+  --confirm 'POOL:4663:0xhook:sha256:pool-plan-digest' \
+  --mainnet
 ```
 
 The launch command reruns the pool simulation. It also runs the configured read-only live verification after broadcasting.
@@ -287,7 +349,8 @@ Run small live swaps after launch. Cover both swap directions and both amount mo
 
 Test the complete process on a supported testnet first.
 
-Ethereum mainnet requires both the exact confirmation value and `--mainnet`. The CLI does not accept private keys on the command line or read them from `.env`.
+Ethereum and Robinhood Chain mainnet require both the exact confirmation value and `--mainnet`.
+The CLI does not accept private keys on the command line or read them from `.env`.
 
 RPC endpoints are also kept out of child-process arguments. The CLI configures Anvil forks through the local Anvil JSON-RPC interface and passes live endpoints to Foundry through environment variables.
 

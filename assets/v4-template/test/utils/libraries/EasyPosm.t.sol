@@ -33,7 +33,7 @@ contract EasyPosmTest is Test, BaseTest {
     PoolKey nativeKey;
 
     function setUp() public {
-        deployArtifacts();
+        deployV4Testkit();
 
         (currency0, currency1) = deployCurrencyPair();
 
