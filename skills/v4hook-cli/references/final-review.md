@@ -27,6 +27,7 @@ Record at least:
 | Gate | Evidence to compare |
 | --- | --- |
 | Unit/integration | filters and executed/pass/skip counts |
+| Implementation causality | production interface and owner exercised; targeted negative control fails as expected |
 | Fuzz | runs per test and matched test count |
 | Invariant | runs, depth, fail-on-revert, calls, reverts and discards |
 | Static analysis | detector set, project-path filters and finding triage |

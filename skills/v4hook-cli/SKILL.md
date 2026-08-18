@@ -94,6 +94,11 @@ actions.
 6. Do not edit tests or replace, remove, or relax a configured verification gate merely to obtain a
    pass. Diagnose whether a failure is in the implementation, configuration, environment, existing
    project, or verification contract before repairing it.
+   Treat tests as evidence, not as the complete specification. Build the requested production
+   artifact from the requirement, exercise it through its intended production interface, and keep
+   behavior in its declared owner. Do not make tests pass with a test-only path, substitute artifact,
+   or business logic duplicated in demos, mocks, fixtures, scripts, or clients. Verify not only that
+   the system works, but that it works because the requested production artifact does the work.
 7. Model broadcast authority explicitly. Split stages when registration, treasury, ownership, or
    administration require different signers. Declare role/address pairs in each broadcast step's
    `requiredAuthorities`, in `deployment.requiredAuthorities` for live deployment, and in

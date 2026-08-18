@@ -84,6 +84,11 @@ hook data only through a router whose encoding behavior is trusted and tested.
 
 ## Build the tests
 
+Design coverage from the requirement and protected-invariant ledger, not only from the current
+implementation or test suite. Exercise behavior through the intended public production interface
+and keep each production decision in its declared owner. Mocks and fixtures may isolate external
+boundaries, but must not replace or duplicate the business logic whose implementation is requested.
+
 Cover at least:
 
 - Every enabled callback and every material revert.
@@ -98,6 +103,12 @@ Add adversarial token and reentrancy cases when the hook transfers tokens or cal
 Increase fuzz depth for return deltas, custom curves, custody, or privileged fee changes.
 If an invariant handler catches reverts, count attempted and successful actions and assert the
 expected success relationship. A nonzero-call assertion alone can pass while every action fails.
+
+For each load-bearing behavior whose evidence depends on tests, perform a targeted negative control:
+temporarily disable or perturb the intended production implementation, confirm that the relevant
+tests fail for the expected reason, restore the implementation, and rerun them. A test that remains
+green when its intended production behavior is broken is not evidence for that behavior. Leave no
+temporary mutation in the worktree.
 
 ## Wire simulation honestly
 
