@@ -1,5 +1,7 @@
 # v4hook CLI
 
+> v4hook does not have a token and has no intention of releasing one. Any token claiming to be affiliated with this project is fraudulent.
+
 `v4hook` checks, simulates and deploys Uniswap v4 hooks from Foundry projects.
 
 The CLI binds your source, compiler output, constructor arguments, hook permissions and network contracts into a deployment plan. It then tests that exact plan on a pinned Anvil fork before it broadcasts a transaction.
@@ -527,3 +529,7 @@ forge test --root assets/v4-template
 ```
 
 Rust 1.97.1 is pinned in `rust-toolchain.toml`. Cargo dependencies use exact versions.
+
+## No token
+
+v4hook does not have a token and has no intention of releasing one. Any token claiming to be affiliated with this project is fraudulent. Do not buy, sell or promote any such token.
