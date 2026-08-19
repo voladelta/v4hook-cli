@@ -127,6 +127,15 @@ filter executes. The final settings and executed counts must meet or exceed that
 user explicitly requests a reduction. An explicit project setting below an inherited/default value
 is still a weakened gate.
 
+## Convergence loop
+
+Every gate iteration must produce new evidence: a new diagnostic, a narrowed reproducer, a
+repaired defect class, or a broader passing check. If two consecutive iterations against the same
+failure produce no new information, change strategy: isolate the reproducer, reduce the fixture,
+or bisect the configuration. If no locally actionable strategy remains, stop and report the
+blocker with its evidence. Never retry an unchanged action expecting a different result, and never
+weaken a gate to exit the loop.
+
 ## Verify and advance the lifecycle
 
 Run the narrowest relevant test first. Then run the project gates proportionate to the change.
@@ -137,7 +146,8 @@ to the configured command; let the CLI enforce severity and exact source-bound t
 Treat the first full check as the start of a bounded repair loop:
 
 1. Classify each failure as implementation, configuration, script, test, local tooling, launch
-   input/network, live authority, or external assurance.
+   input/network, live authority, or external assurance. Record the violated contract, failing
+   input, expected behavior, and observed behavior before changing anything.
 2. Fix every locally actionable defect and rerun its narrow reproducer.
 3. Rerun the complete configured check and final `v4-security-foundations` review.
 4. Repeat until local gates pass and no known locally actionable defect remains.

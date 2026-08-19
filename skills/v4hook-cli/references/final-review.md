@@ -4,6 +4,11 @@ Run this review after the first complete green check. Treat the implementation, 
 configuration, and reported results as untrusted evidence. A passing command is insufficient when
 its workload changed, its filters matched nothing, or its tests skipped the lifecycle under review.
 
+When delegating this review, hand the reviewer the original requirements, the protected-invariant
+ledger, the pre-edit verification baseline, and the final diff. Require findings against those
+artifacts rather than a summary of the implementation, and treat the returned report as evidence
+to re-verify, not as completion.
+
 ## Reconstruct the intended system
 
 Re-read the user's request and any reference README, architecture, economics, and security files.

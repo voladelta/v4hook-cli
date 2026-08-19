@@ -96,6 +96,8 @@ Cover at least:
 - Zero values, boundary values, signed amount modes, and both token orderings.
 - Stateful fuzzing for amount, tick, fee, and hook-data boundaries.
 - Invariants for solvency, balanced deltas, access control, and recoverable liquidity.
+- Differential checks against a reference implementation or an independent calculation for any
+  economic rule that has one, such as a published fee or curve formula.
 - Both swap directions with exact input and exact output on the pinned fork.
 - Postconditions for balances, hook state, PoolManager accounting, and permissions.
 
