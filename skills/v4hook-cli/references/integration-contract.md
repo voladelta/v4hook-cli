@@ -136,3 +136,7 @@ Apply project `AGENTS.md` instructions. Use `v4-security-foundations` for hook t
 review. Load official Ethereum and Foundry guidance for Solidity and testing. Load official
 Uniswap guidance for current v4 behavior and deployments. Load a Chainlink skill only when its
 product enters the design; use the VRF skill for verifiable randomness.
+
+Read [evm-integration.md](evm-integration.md) for TypeScript or JavaScript clients, scenario runners,
+frontends, indexers, Universal Router or Permit2 flows, and off-chain interaction with the hook or
+its companion contracts.

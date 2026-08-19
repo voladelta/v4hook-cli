@@ -180,6 +180,9 @@ fn init_keeps_captured_stdout_machine_readable() {
     let agent_instructions =
         fs::read_to_string(destination.0.join("AGENTS.md")).expect("scaffold includes AGENTS.md");
     assert!(agent_instructions.contains("v4-security-foundations"));
+    assert!(agent_instructions.contains("viem-integration"));
+    assert!(agent_instructions.contains("v4-sdk-integration"));
+    assert!(agent_instructions.contains("Robinhood Chain"));
     let metadata = fs::read_to_string(destination.0.join(".v4hook.toml"))
         .expect("scaffold includes template metadata");
     assert!(metadata.contains(&format!(

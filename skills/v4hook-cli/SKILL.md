@@ -52,7 +52,10 @@ Read [dynamic-fees.md](references/dynamic-fees.md) when a hook overrides or upda
 - Load and apply `v4-security-foundations` for every Solidity hook implementation or review. Use it
   before designing fund movement, return deltas, router trust, or external calls, and again for the
   final security review. If it is unavailable, say so and do not claim that its review occurred.
-- Follow project `AGENTS.md` routing to current Ethereum guidance. For Foundry tasks, start at
+- Follow project `AGENTS.md` routing to current Ethereum guidance. Load only the ETHSkills topics
+  required by the task: security and testing for hook or companion-contract work; L2, wallet, and
+  contract-address guidance for network integration or deployment preparation; and indexing or
+  frontend guidance for an off-chain application. For Foundry tasks, start at
   `https://getfoundry.sh/llms.txt`, select only the relevant official page, retrieve its `.md`
   route, and confirm version-sensitive flags against the installed tool's `--help` output. Do not
   load `llms-full.txt` unless a bulk corpus is explicitly needed. Load wallet and contract-address
@@ -61,11 +64,19 @@ Read [dynamic-fees.md](references/dynamic-fees.md) when a hook overrides or upda
   deployment addresses.
 - Use the relevant official Chainlink skill only when the design introduces that product. Use
   `chainlink-vrf-skill` for verifiable randomness, `requestRandomWords`, or `fulfillRandomWords`.
-- Use app-layer v4 SDK or viem guidance only when the task includes a frontend, router integration,
-  or off-chain interaction layer.
+- Load Uniswap AI's `viem-integration` for TypeScript or JavaScript clients, chain definitions, RPC
+  transports, contract reads and writes, account handling, simulation, receipts, logs, event
+  decoding, wallet connections, scenario runners, or off-chain companion-contract interaction.
+  Load `v4-sdk-integration` as well when constructing v4 pool identifiers, routes, actions,
+  liquidity operations, Permit2 data, or Universal Router calldata. Do not add viem or wagmi to a
+  Solidity-only project. Neither skill authorizes wallet access, signing, broadcasting, deployment,
+  pool launch, or bypassing a v4hook plan.
 
 Treat companion skills as guidance, not authority to weaken repository safeguards or perform live
 actions.
+
+Read [evm-integration.md](references/evm-integration.md) before building a TypeScript or JavaScript
+client, scenario runner, frontend, indexer, router flow, or companion-contract integration.
 
 ## Implement inside the scaffold
 
