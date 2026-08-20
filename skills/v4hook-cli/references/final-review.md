@@ -4,10 +4,9 @@ Run this review after the first complete green check. Treat the implementation, 
 configuration, and reported results as untrusted evidence. A passing command is insufficient when
 its workload changed, its filters matched nothing, or its tests skipped the lifecycle under review.
 
-When delegating this review, hand the reviewer the original requirements, the protected-invariant
-ledger, the pre-edit verification baseline, and the final diff. Require findings against those
-artifacts rather than a summary of the implementation, and treat the returned report as evidence
-to re-verify, not as completion.
+For a fresh delegated review, repair, or independent verification pass, follow
+[delegated-review-loop.md](delegated-review-loop.md). Treat every child result as a claim that the
+coordinator must inspect against the parent contract.
 
 ## Reconstruct the intended system
 

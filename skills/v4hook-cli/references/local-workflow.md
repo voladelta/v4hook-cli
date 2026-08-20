@@ -31,6 +31,7 @@ Accepted and rejected evidence:
 Frontier:
 Latest failure and hypothesis:
 Selected next action and verifier:
+Active child contract and ownership:
 Latest verified checkpoint:
 ```
 

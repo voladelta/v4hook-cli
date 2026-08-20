@@ -132,6 +132,11 @@ the parent verification contract, load `workflow-convergence` and maintain the i
 ledger defined in [local-workflow.md](references/local-workflow.md). Resume from that ledger and
 actual repository state until the parent gate is Complete, Escalated, or Blocked.
 
+When subagent delegation is available, read
+[delegated-review-loop.md](references/delegated-review-loop.md) before first-green review. Use
+`task-contracts` to bound each fresh reviewer, fixer, and verifier; the coordinator retains parent
+contract ownership and alone decides terminal status.
+
 Make the narrowest relevant reproducer red for the expected reason, repair the defect, then make that
 gate green. Run the configured gates proportionate to the change. For a completed hook
 implementation, read [local-workflow.md](references/local-workflow.md) and finish its complete check.
