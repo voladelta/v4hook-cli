@@ -127,6 +127,11 @@ exercise the changed production path, and the focused gate is green.
 
 ## Verify the implementation
 
+A completed hook implementation or material adaptation is a convergence workflow. After freezing
+the parent verification contract, load `workflow-convergence` and maintain the ignored v4hook
+ledger defined in [local-workflow.md](references/local-workflow.md). Resume from that ledger and
+actual repository state until the parent gate is Complete, Escalated, or Blocked.
+
 Make the narrowest relevant reproducer red for the expected reason, repair the defect, then make that
 gate green. Run the configured gates proportionate to the change. For a completed hook
 implementation, read [local-workflow.md](references/local-workflow.md) and finish its complete check.
@@ -136,12 +141,6 @@ the same intended workload reliable; a replacement command, narrower filter, red
 severity, or removed assertion cannot turn red into green. When the original gate remains
 nondeterministic or incompatible after evidence-changing attempts, preserve its failure and report
 the exact blocker instead of claiming completion.
-
-Each repair iteration must produce new evidence: a new diagnostic, narrower red reproducer, repaired
-defect class, or broader passing check. After two iterations against the same failure produce no new
-information, change strategy by isolating the reproducer, reducing the fixture, or bisecting the
-configuration. Stop only when the applicable gates pass with no known locally actionable defect, or
-when no locally actionable strategy remains and the blocker is evidenced.
 
 A green first pass is not completion for a hook implementation or material adaptation. Commit the
 candidate and use `v4hook verification check` so the CLI binds first-green evidence to that clean

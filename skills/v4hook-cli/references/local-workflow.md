@@ -20,6 +20,30 @@ Local inspection is complete when the CLI accepts the active configuration, requ
 accounted for, placeholders are resolved for the authorized stage, and no secret or authenticated
 endpoint entered tracked state.
 
+## Converge on parent green
+
+After freezing the verification contract for an implementation or material adaptation, keep one
+authoritative ignored ledger at `.v4hook/convergence-ledger.md`:
+
+```text
+Parent gate status:
+Accepted and rejected evidence:
+Frontier:
+Latest failure and hypothesis:
+Selected next action and verifier:
+Latest verified checkpoint:
+```
+
+Update it after each material observation and accepted checkpoint. Recover from the ledger plus the
+actual Git and verification state, not from a conversational summary. Keep only authorized,
+prerequisite-complete actions on the frontier.
+
+Cycle `diagnose → focused proof → integrate → full gate`. A focused pass advances evidence; only the
+configured full check advances the parent gate. A changed source after review returns the lifecycle
+to first green and therefore adds review and the unchanged second check back to the frontier. Use
+`workflow-convergence` as the source of truth for progress deltas, changed hypotheses, recovery, and
+Complete, Escalated, or Blocked termination.
+
 ## Repair missing Slither tooling
 
 When `doctor` reports that `slither` is missing, prefer an isolated uv tool installation:
