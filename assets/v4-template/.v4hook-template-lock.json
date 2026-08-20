@@ -1,7 +1,7 @@
 {
   "schemaVersion": "v4hook.template-lock.v2",
-  "templateVersion": "2.0.1",
-  "snapshot": "v4hook-template-2.0.1",
+  "templateVersion": "2.1.0",
+  "snapshot": "v4hook-template-2.1.0",
   "repository": "Uniswap/v4-template",
   "commit": "1fbf95547791f0821a170b88c750cb2e04e6818b",
   "dependencies": {
@@ -27,11 +27,11 @@
       "ownership": "managed"
     },
     ".gitignore": {
-      "sha256": "sha256:ce0a924bfafde92c8e36cc42eb0cccd608cac81740221f4e32f5730bddacf47f",
+      "sha256": "sha256:f6f5b5abaa409d4e83070a092dbf6098af0da6dd0638282c5a5bce17b1cec6e2",
       "ownership": "managed"
     },
     "AGENTS.md": {
-      "sha256": "sha256:92c8a868a9cf42ab8fd46ca40e623d42020ba242e5d667489eb2cbad1880871b",
+      "sha256": "sha256:511db1aefc9dbd933c31a2543717cfc50363ecc39760dab0df3ee2c1add7534c",
       "ownership": "managed"
     },
     "LICENSE": {
@@ -2489,6 +2489,10 @@
     "vendor/v4-periphery/src/utils/HookMiner.sol": {
       "sha256": "sha256:c902533546f0aae4efb6a0b80049d011fa6fd7b9d10146636aa3359a7ce8bfc1",
       "ownership": "generated"
+    },
+    "verification-contract.example.json": {
+      "sha256": "sha256:a0dfc76cff59cdf6881efc447e8815aaf240aac13a4072094b4476ff3b6598ec",
+      "ownership": "managed"
     }
   }
 }

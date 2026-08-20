@@ -318,12 +318,13 @@ fn foundry_test_summary(
         minimum_invariant_runs: None,
         minimum_invariant_calls: None,
         invariant_reverts: 0,
+        tests: Vec::new(),
     };
-    for suite in suites.values() {
+    for (suite_name, suite) in suites {
         let Some(results) = suite.get("test_results").and_then(Value::as_object) else {
             continue;
         };
-        for result in results.values() {
+        for (test_name, result) in results {
             let status = result
                 .get("status")
                 .and_then(Value::as_str)
@@ -338,6 +339,7 @@ fn foundry_test_summary(
                 .and_then(Value::as_object)
                 .context("forge test result is missing its test kind")?;
             record_foundry_kind(kind, &mut summary, requirements)?;
+            summary.tests.push(format!("{suite_name}::{test_name}"));
         }
     }
     if summary.total == 0 {
@@ -502,6 +504,14 @@ mod tests {
         assert_eq!(summary.minimum_invariant_runs, Some(256));
         assert_eq!(summary.minimum_invariant_calls, Some(128_000));
         assert_eq!(summary.invariant_reverts, 7);
+        assert_eq!(
+            summary.tests,
+            [
+                "test/Hook.t.sol:HookTest::invariant_balances()",
+                "test/Hook.t.sol:HookTest::test_fuzz(uint256)",
+                "test/Hook.t.sol:HookTest::test_unit()",
+            ]
+        );
     }
 
     #[test]

@@ -44,6 +44,12 @@ other secrets only in ignored local state or environment variables.
 
 ## Preserve verification integrity
 
+- Keep a tracked `verification-contract.json` for completed implementations and material
+  adaptations. Each protected invariant must name every exact configured test used as evidence, or
+  carry one explicit external evidence gap. Freeze it from a clean baseline commit with
+  `v4hook verification freeze`; a prose evidence table does not replace this machine-checked
+  mapping.
+
 - Never replace Slither or another configured gate with `forge lint` because the tool is missing.
   Preserve the gate, run the remaining commands individually, and report the missing tool.
 - Filter pinned `vendor/` paths from Slither detector output, fail on high-severity project

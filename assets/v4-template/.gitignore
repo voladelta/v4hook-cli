@@ -2,14 +2,14 @@
 cache/
 out/
 
+# Documentation omitted from flattened dependencies
+vendor/**/docs/
+
 # Ignores development (and goerli) broadcast logs
 !/broadcast
 /broadcast/*/31337/
 /broadcast/*/5/
 /broadcast/**/dry-run/
-
-# Docs
-docs/
 
 # Local environment files
 .env

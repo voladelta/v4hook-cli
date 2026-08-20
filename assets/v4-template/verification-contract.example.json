@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "v4hook.verification-contract.v1",
+  "invariants": [
+    {
+      "id": "counter-swap-accounting",
+      "requirement": "The example hook updates its counter through the configured swap callbacks.",
+      "tests": [
+        {
+          "gate": "unit",
+          "name": "test/Counter.t.sol:CounterTest::testCounterHooks()"
+        }
+      ]
+    },
+    {
+      "id": "counter-liquidity-accounting",
+      "requirement": "The example hook updates its counter through the configured liquidity callbacks.",
+      "tests": [
+        {
+          "gate": "unit",
+          "name": "test/Counter.t.sol:CounterTest::testLiquidityHooks()"
+        }
+      ]
+    }
+  ]
+}

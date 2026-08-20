@@ -62,3 +62,28 @@ rerun the complete configured check.
 The complete check is green only when its intended workloads execute, every configured gate passes,
 and no known locally actionable defect remains. Missing external assurance or inputs remain
 blockers; they do not turn a local failure into residual risk.
+
+## Bind a completed implementation
+
+For a completed hook or material adaptation, use the CLI verification lifecycle rather than
+reporting a raw `check` result as completion:
+
+1. Before production edits, replace `verification-contract.example.json` with a tracked contract
+   mapping every protected invariant to exact configured test names or one explicit `externalGap`.
+   Commit the prepared scaffold, ledger, configuration, and contract with a clean worktree.
+2. Run `v4hook verification freeze --config v4hook.config.json --contract
+   verification-contract.json`. The state freezes the tracked baseline, check configuration,
+   effective `forge config`, and verification-contract digest.
+3. Implement and commit the candidate. Run `v4hook verification check --config
+   v4hook.config.json`; this is first-green evidence only.
+4. Review that exact commit and write the report under `.v4hook/`. Bind it with `v4hook verification
+   review --report .v4hook/adversarial-review.md`.
+5. Run the same verification check again. Only the `complete` state proves that the reviewed source
+   digest passed twice. Any committed source change replaces the candidate with a new first-green
+   cycle; review and second green must then be repeated.
+
+The contract validates exact names emitted by the configured unit, fuzz, and invariant gates. A
+general file or suite reference is not a mapping. Keep the state file and review report together;
+the second check verifies the report digest before advancing. Completion binds the entire tracked
+tree, including documentation. Report results in the final response without editing tracked files;
+a required tracked report is a source change and therefore starts a new verification cycle.

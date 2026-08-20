@@ -349,9 +349,11 @@ pub struct FoundryTestSummary {
     pub minimum_invariant_runs: Option<u64>,
     pub minimum_invariant_calls: Option<u64>,
     pub invariant_reverts: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tests: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SourceIdentity {
     pub commit: String,
@@ -359,7 +361,7 @@ pub struct SourceIdentity {
     pub tree_digest: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ToolchainIdentity {
     /// Kept as `node` to preserve the v1 plan schema; now identifies the Rust CLI build.

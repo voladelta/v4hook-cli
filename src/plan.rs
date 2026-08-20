@@ -82,7 +82,7 @@ pub fn source_identity(cwd: &Path) -> Result<SourceIdentity> {
         false,
     )?;
     if !status.stdout.trim().is_empty() {
-        bail!("project git worktree must be clean before planning");
+        bail!("project git worktree must be clean");
     }
     let commit = require_success(&command(&["git", "rev-parse", "HEAD"]), cwd, None, false)?
         .stdout

@@ -18,6 +18,7 @@ mod simulate;
 mod slither;
 mod template;
 mod util;
+mod verification;
 
 use std::{
     io::{self, IsTerminal},
@@ -43,6 +44,10 @@ use crate::{
     simulate::simulate_deployment,
     template::{TemplateRefreshInput, refresh_template, seal_template},
     util::write_json,
+    verification::{
+        DEFAULT_STATE_PATH, check as verification_check, freeze as verification_freeze,
+        review as verification_review,
+    },
 };
 
 #[derive(Parser)]
@@ -94,6 +99,11 @@ enum Command {
     Check {
         #[arg(short, long)]
         config: PathBuf,
+    },
+    /// Bind a committed baseline, invariant contract, review, and two green checks to exact source.
+    Verification {
+        #[command(subcommand)]
+        command: VerificationCommand,
     },
     /// Classify configuration, local, testnet, and external launch readiness from bound evidence.
     Readiness {
@@ -154,6 +164,33 @@ enum ScaffoldCommand {
         dry_run: bool,
         #[arg(long, value_enum)]
         conflicts: Option<ConflictPolicy>,
+    },
+}
+
+#[derive(Subcommand)]
+enum VerificationCommand {
+    /// Freeze the tracked verification contract and effective workload from a clean baseline commit.
+    Freeze {
+        #[arg(short, long)]
+        config: PathBuf,
+        #[arg(long)]
+        contract: PathBuf,
+        #[arg(long, default_value = DEFAULT_STATE_PATH)]
+        state: PathBuf,
+    },
+    /// Run the complete gate and advance first-green or same-source second-green evidence.
+    Check {
+        #[arg(short, long)]
+        config: PathBuf,
+        #[arg(long, default_value = DEFAULT_STATE_PATH)]
+        state: PathBuf,
+    },
+    /// Bind a non-empty adversarial review report to the unchanged first-green source commit.
+    Review {
+        #[arg(long, default_value = DEFAULT_STATE_PATH)]
+        state: PathBuf,
+        #[arg(long)]
+        report: PathBuf,
     },
 }
 
@@ -412,6 +449,71 @@ fn run() -> Result<i32> {
             let result = json!({"ok": true, "checks": checks});
             print_output(&result, "All configured checks passed.", force_json)?;
         }
+        Command::Verification { command } => match command {
+            VerificationCommand::Freeze {
+                config,
+                contract,
+                state,
+            } => {
+                let state_value = verification_freeze(&load_config(config)?, &contract, &state)?;
+                let result = json!({
+                    "ok": true,
+                    "stage": state_value.stage,
+                    "state": state,
+                    "digest": state_value.digest,
+                    "baseline": state_value.baseline,
+                    "cliPath": state_value.cli_path,
+                    "cliDigest": state_value.cli_digest,
+                    "toolchain": state_value.toolchain,
+                });
+                print_output(
+                    &result,
+                    "Frozen the committed verification baseline and contract.",
+                    force_json,
+                )?;
+            }
+            VerificationCommand::Check { config, state } => {
+                let state_value = verification_check(&load_config(config)?, &state)?;
+                let candidate = state_value.candidate.as_ref();
+                let result = json!({
+                    "ok": true,
+                    "stage": state_value.stage,
+                    "state": state,
+                    "digest": state_value.digest,
+                    "candidateSource": candidate.map(|value| &value.source),
+                    "firstGreenAt": candidate.map(|value| &value.first_green.created_at),
+                    "reviewDigest": candidate
+                        .and_then(|value| value.review.as_ref())
+                        .map(|value| &value.report_digest),
+                    "secondGreenAt": candidate
+                        .and_then(|value| value.second_green.as_ref())
+                        .map(|value| &value.created_at),
+                    "cliDigest": state_value.cli_digest,
+                });
+                let human = if state_value.stage == verification::VerificationStage::Complete {
+                    "Verification is complete: the reviewed source passed the unchanged second gate."
+                } else {
+                    "Recorded a first-green candidate. Run adversarial review before the second gate."
+                };
+                print_output(&result, human, force_json)?;
+            }
+            VerificationCommand::Review { state, report } => {
+                let state_value = verification_review(&state, &report)?;
+                let result = json!({
+                    "ok": true,
+                    "stage": state_value.stage,
+                    "state": state,
+                    "digest": state_value.digest,
+                    "candidateSource": state_value.candidate.as_ref().map(|value| &value.source),
+                    "report": report,
+                });
+                print_output(
+                    &result,
+                    "Bound the adversarial review to the unchanged first-green source.",
+                    force_json,
+                )?;
+            }
+        },
         Command::Readiness {
             config,
             plan,

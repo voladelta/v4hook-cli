@@ -83,13 +83,18 @@ Complete these gates before the first edit:
    material design change.
 4. Record the exact pre-edit gate commands, filters, effective settings, and executed counts as the
    frozen verification manifest required by the integration contract.
-5. Load and apply `v4-security-foundations` for Solidity hook implementation or review. If it is
+5. Replace the scaffold verification-contract example with a tracked contract mapping every
+   protected invariant to exact test names in the configured unit, fuzz, or invariant gate. Give an
+   invariant without local proof one explicit external evidence gap instead of a plausible test
+   claim. Commit the specification, ledger, active configuration, verification contract, and
+   scaffold baseline before editing production code, then run `v4hook verification freeze`.
+6. Load and apply `v4-security-foundations` for Solidity hook implementation or review. If it is
    unavailable, say so and do not claim that review occurred. Follow project `AGENTS.md` routing and
    use current official Foundry and Uniswap guidance for version-sensitive behavior and addresses;
    confirm CLI and Foundry flags against installed `--help` output.
 
-Preparation is complete when the specification is checkable, every protected invariant is
-accounted for, the effective verification workload is recorded, and each selected base, import, and
+Preparation is complete when the specification is checkable, every protected invariant is mapped,
+the effective workload is frozen from a clean baseline commit, and each selected base, import, and
 permission exists in the pinned tree.
 
 For TypeScript or JavaScript clients, scenario runners, frontends, indexers, router flows, or
@@ -138,11 +143,18 @@ information, change strategy by isolating the reproducer, reducing the fixture, 
 configuration. Stop only when the applicable gates pass with no known locally actionable defect, or
 when no locally actionable strategy remains and the blocker is evidenced.
 
-A green first pass is not completion for a hook implementation or material adaptation. Read
-[final-review.md](references/final-review.md), inspect the final diff as untrusted input, reapply
-`v4-security-foundations`, and compare the result with the original requirements, protected-invariant
-ledger, and pre-edit verification baseline. Repair every must-fix finding and rerun the complete
-check. Passing gates and fork evidence are necessary evidence, not a security audit.
+A green first pass is not completion for a hook implementation or material adaptation. Commit the
+candidate and use `v4hook verification check` so the CLI binds first-green evidence to that clean
+source digest and validates every exact test mapping. Read [final-review.md](references/final-review.md),
+inspect that candidate diff as untrusted input, reapply `v4-security-foundations`, and compare it
+with the original requirements, protected-invariant ledger, and pre-edit verification baseline.
+Write the review report under ignored `.v4hook/` state and bind it with `v4hook verification review`.
+Repair every must-fix finding, commit the repair, and run `v4hook verification check`; a changed
+source becomes a new first-green candidate and therefore requires a new review. Completion requires
+the lifecycle state `complete`, produced only by a second check of the unchanged reviewed source and
+unchanged report. Keep the tracked tree unchanged after completion; if a tracked evidence document
+must change, commit it and repeat first-green, review, and second-green for that new source. Passing
+gates and fork evidence are necessary evidence, not a security audit.
 
 ## Advance the lifecycle
 
@@ -162,5 +174,5 @@ CLI-verified generated artifacts.
 
 Report the authorized outcome, hook architecture and permissions when applicable, material security
 assumptions, files changed, checks actually run with meaningful counts, immutable evidence produced,
-and remaining blockers or live actions. Run safe in-scope commands instead of handing them back to
+the completed verification-state digest and source commit, and remaining blockers or live actions. Run safe in-scope commands instead of handing them back to
 the user. Describe only the lifecycle stage whose completion criterion passed.

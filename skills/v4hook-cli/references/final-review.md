@@ -73,8 +73,11 @@ an unexplained budget increase is a must-fix review finding.
 
 ## Finish the second pass
 
-Repair every must-fix item, make its narrow reproducer red, repair it to green, rerun the complete
-configured check, and repeat the comparison above. Report before/after gate settings and actual
-executed/pass/skip counts.
+Write the classified review report under `.v4hook/` and bind it to the first-green source with
+`v4hook verification review`. Repair every must-fix item, make its narrow reproducer red, repair it
+to green, and commit it. The next `v4hook verification check` intentionally records the changed
+commit as a new first-green candidate; repeat this review against that digest. Run the unchanged
+check again only after the new review is bound. Report before/after gate settings and actual
+executed/pass/skip counts. Treat only lifecycle state `complete` as same-source second-pass evidence.
 Only residual external assurance, unavailable launch inputs, or actions outside the user's granted
 authority may remain; locally actionable defects are not residual risks.

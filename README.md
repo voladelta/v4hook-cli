@@ -134,7 +134,7 @@ This command is for maintainers of this repository:
 
 ```sh
 v4hook template refresh \
-  --version 2.0.1 \
+  --version 2.1.0 \
   --source Uniswap/v4-template \
   --reference main
 ```
@@ -153,6 +153,32 @@ v4hook template seal --repository .
 ```
 
 The command does not commit or push changes. Review the diff and commit the updated scaffold with the new CLI release.
+
+## Bind local verification to one source commit
+
+For a completed hook or material adaptation, write a tracked verification contract that maps every
+protected invariant to exact test names from the configured unit, fuzz, or invariant gate. An
+invariant without local proof must carry one explicit `externalGap` instead. From a clean committed
+pre-edit baseline:
+
+```sh
+v4hook verification freeze \
+  --config v4hook.config.json \
+  --contract verification-contract.json
+
+# Implement, test, and commit the candidate, then record first green.
+v4hook verification check --config v4hook.config.json
+
+# Review the exact first-green commit and write the report outside the tracked source tree.
+v4hook verification review --report .v4hook/adversarial-review.md
+
+# The same source commit and unchanged report must pass again.
+v4hook verification check --config v4hook.config.json
+```
+
+The lifecycle freezes configured checks and effective Foundry settings. It requires a clean Git
+worktree and tracked configuration/contract. A source change after first green or review resets the
+candidate to `firstGreen`; completion is only `green → reviewed → same-source green`.
 
 Use semantic versions for templates:
 

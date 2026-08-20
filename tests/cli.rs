@@ -189,10 +189,16 @@ fn init_keeps_captured_stdout_machine_readable() {
         "created-with-cli = \"{}\"",
         env!("CARGO_PKG_VERSION")
     )));
-    assert!(metadata.contains("version = \"2.0.1\""));
+    assert!(metadata.contains("version = \"2.1.0\""));
     assert!(destination.0.join(".env.example").is_file());
     assert!(destination.0.join(".gas-snapshot").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());
+    assert!(
+        destination
+            .0
+            .join("verification-contract.example.json")
+            .is_file()
+    );
     assert!(
         destination
             .0
@@ -211,5 +217,84 @@ fn scaffold_config_example_matches_repository_example() {
     assert_eq!(
         include_str!("../v4hook.config.example.json"),
         include_str!("../assets/v4-template/v4hook.config.example.json")
+    );
+}
+
+#[test]
+fn verification_freeze_requires_a_clean_committed_contract() {
+    let destination = TemporaryDirectory::new("verification-freeze");
+    let init = Command::new(env!("CARGO_BIN_EXE_v4hook"))
+        .arg("init")
+        .arg(&destination.0)
+        .output()
+        .expect("initialize verification fixture");
+    assert!(init.status.success());
+    fs::copy(
+        destination.0.join("v4hook.config.example.json"),
+        destination.0.join("v4hook.config.json"),
+    )
+    .expect("create active config");
+    fs::copy(
+        destination.0.join("verification-contract.example.json"),
+        destination.0.join("verification-contract.json"),
+    )
+    .expect("create verification contract");
+
+    let dirty = Command::new(env!("CARGO_BIN_EXE_v4hook"))
+        .current_dir(&destination.0)
+        .args([
+            "verification",
+            "freeze",
+            "--config",
+            "v4hook.config.json",
+            "--contract",
+            "verification-contract.json",
+        ])
+        .output()
+        .expect("reject dirty verification freeze");
+    assert!(!dirty.status.success());
+    assert!(String::from_utf8_lossy(&dirty.stderr).contains("worktree must be clean"));
+
+    for args in [
+        vec!["config", "user.email", "v4hook@example.invalid"],
+        vec!["config", "user.name", "v4hook test"],
+        vec!["add", "."],
+        vec!["commit", "-m", "test: freeze baseline"],
+    ] {
+        let status = Command::new("git")
+            .current_dir(&destination.0)
+            .args(args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("prepare committed verification fixture");
+        assert!(status.success());
+    }
+
+    let frozen = Command::new(env!("CARGO_BIN_EXE_v4hook"))
+        .current_dir(&destination.0)
+        .args([
+            "verification",
+            "freeze",
+            "--config",
+            "v4hook.config.json",
+            "--contract",
+            "verification-contract.json",
+        ])
+        .output()
+        .expect("freeze committed verification baseline");
+    assert!(
+        frozen.status.success(),
+        "freeze failed: {}",
+        String::from_utf8_lossy(&frozen.stderr)
+    );
+    let value: serde_json::Value =
+        serde_json::from_slice(&frozen.stdout).expect("freeze output is JSON");
+    assert_eq!(value["stage"], "frozen");
+    assert!(
+        destination
+            .0
+            .join(".v4hook/verification-state.json")
+            .is_file()
     );
 }
