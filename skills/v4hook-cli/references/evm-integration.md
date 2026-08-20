@@ -97,14 +97,9 @@ A submitted transaction hash or successful process exit is not success evidence.
 
 ## Keep scenario evidence minimal
 
-A configured devnet scenario writes only `v4hook.devnet-scenario-report.v1` transaction hashes to
-`V4HOOK_SCENARIO_REPORT`. It must not self-certify receipts, events or state. The CLI independently
-scans the scenario block range and validates transaction completeness, senders, allowed targets,
-receipt status, required hook events and reserved accounts.
-
-Scenario coverage should include the hook and relevant companion contracts, including unauthorized
-sender or router cases. Keep seeds and transaction ordering deterministic. Use manual mining for
-same-block ordering tests and interval mining only when browser confirmation behavior is the goal.
+For configured devnet scenarios, read [devnet.md](devnet.md). Keep the client responsible only for
+submitting the authorized transactions and reporting their hashes; the CLI owns completeness,
+receipt, sender, target, event, reserved-account, and postcondition evidence.
 
 ## Apply external guidance selectively
 

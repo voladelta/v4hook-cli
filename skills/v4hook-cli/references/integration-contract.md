@@ -108,9 +108,9 @@ expected success relationship. A nonzero-call assertion alone can pass while eve
 
 For each load-bearing behavior whose evidence depends on tests, perform a targeted negative control:
 temporarily disable or perturb the intended production implementation, confirm that the relevant
-tests fail for the expected reason, restore the implementation, and rerun them. A test that remains
-green when its intended production behavior is broken is not evidence for that behavior. Leave no
-temporary mutation in the worktree.
+tests go red for the expected reason, restore the implementation, and make them green again. A test
+that remains green when its intended production behavior is broken is not evidence for that
+behavior. Leave no temporary mutation in the worktree.
 
 ## Wire simulation honestly
 
@@ -123,22 +123,6 @@ Fork tests reused across stages must accept `V4HOOK_HOOK_ADDRESS` when present a
 With either lifecycle address present, missing stage inputs must fail rather than skip. Verify the
 configured simulation reports nonzero executed tests and zero unexpected skips.
 
-For devnet scenarios, write the v1 transaction-hash report to `V4HOOK_SCENARIO_REPORT`. Do not claim
-success from the scenario process itself. Configure exact transaction and sender counts, allowed
-targets, required hook event topics, and reserved account indices; require CLI evidence v2 to prove
-every managed-account transaction in the block range was reported and successfully mined.
-
 Do not point swap-quadrant or postcondition steps at ordinary unit tests merely because the scaffold
 contains placeholders. Those steps must inspect the hook deployed by the plan on the pinned Anvil
 fork. If simulation is outside scope, leave it explicitly unvalidated and do not claim readiness.
-
-## Route external guidance
-
-Apply project `AGENTS.md` instructions. Use `v4-security-foundations` for hook threat modeling and
-review. Load official Ethereum and Foundry guidance for Solidity and testing. Load official
-Uniswap guidance for current v4 behavior and deployments. Load a Chainlink skill only when its
-product enters the design; use the VRF skill for verifiable randomness.
-
-Read [evm-integration.md](evm-integration.md) for TypeScript or JavaScript clients, scenario runners,
-frontends, indexers, Universal Router or Permit2 flows, and off-chain interaction with the hook or
-its companion contracts.

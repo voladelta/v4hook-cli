@@ -73,7 +73,8 @@ an unexplained budget increase is a must-fix review finding.
 
 ## Finish the second pass
 
-Repair every must-fix item, rerun its narrow reproducer, rerun the complete configured check, and
-repeat the comparison above. Report before/after gate settings and actual executed/pass/skip counts.
+Repair every must-fix item, make its narrow reproducer red, repair it to green, rerun the complete
+configured check, and repeat the comparison above. Report before/after gate settings and actual
+executed/pass/skip counts.
 Only residual external assurance, unavailable launch inputs, or actions outside the user's granted
 authority may remain; locally actionable defects are not residual risks.
