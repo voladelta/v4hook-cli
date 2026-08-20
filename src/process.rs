@@ -6,6 +6,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
+use regex::Regex;
 use serde_json::Value;
 
 use crate::model::FoundryTestSummary;
@@ -122,6 +123,10 @@ pub fn require_success(
     inherit: bool,
 ) -> Result<CommandResult> {
     let result = run(command, cwd, env, inherit)?;
+    require_zero_exit(command, result)
+}
+
+fn require_zero_exit(command: &[String], result: CommandResult) -> Result<CommandResult> {
     if result.exit_code != 0 {
         let detail = if result.stderr.trim().is_empty() {
             result.stdout.trim()
@@ -139,6 +144,71 @@ pub fn require_success(
         );
     }
     Ok(result)
+}
+
+fn identical_foundry_snapshot_diff_count(result: &CommandResult) -> Option<usize> {
+    if result.exit_code != 1 || !result.stderr.trim().is_empty() {
+        return None;
+    }
+
+    let aggregate_summary = Regex::new(
+        r"^Ran [0-9]+ test suites? .+: [0-9]+ tests? passed, ([0-9]+) failed, [0-9]+ skipped \([0-9]+ total tests\)$",
+    )
+    .expect("valid Foundry summary regex");
+    let lines = result.stdout.lines().map(str::trim).collect::<Vec<_>>();
+    if lines
+        .iter()
+        .any(|line| line.starts_with("[FAIL") || line.starts_with("Suite result: FAILED"))
+    {
+        return None;
+    }
+    let summaries = lines
+        .iter()
+        .enumerate()
+        .filter_map(|(index, line)| {
+            aggregate_summary
+                .captures(line)
+                .map(|captures| (index, captures))
+        })
+        .collect::<Vec<_>>();
+    let [(summary_index, summary)] = summaries.as_slice() else {
+        return None;
+    };
+    if summary.get(1)?.as_str() != "0" {
+        return None;
+    }
+
+    let diff =
+        Regex::new(r#"^Diff in \"[^\"]+\": consumed \"([^\"]*)\" gas, expected \"([^\"]*)\" gas$"#)
+            .expect("valid Foundry snapshot diff regex");
+    let mut count = 0;
+    for line in lines
+        .iter()
+        .skip(summary_index + 1)
+        .filter(|line| !line.is_empty())
+    {
+        let captures = diff.captures(line)?;
+        if captures.get(1)?.as_str() != captures.get(2)?.as_str() {
+            return None;
+        }
+        count += 1;
+    }
+    (count > 0).then_some(count)
+}
+
+pub fn require_gas_snapshot(
+    command: &[String],
+    cwd: impl AsRef<Path>,
+    env: Option<&BTreeMap<String, String>>,
+) -> Result<(CommandResult, usize)> {
+    let result = run(command, cwd, env, false)?;
+    if result.exit_code == 0 {
+        return Ok((result, 0));
+    }
+    if let Some(count) = identical_foundry_snapshot_diff_count(&result) {
+        return Ok((result, count));
+    }
+    require_zero_exit(command, result).map(|result| (result, 0))
 }
 
 pub fn validate_foundry_test_command(command: &[String], label: &str) -> Result<()> {
@@ -518,6 +588,62 @@ mod tests {
         assert!(
             validate_foundry_test_command(&command(&["forge", "test", "--allow-failure"]), "test")
                 .is_err()
+        );
+    }
+
+    fn snapshot_result(exit_code: i32, stdout: &str, stderr: &str) -> CommandResult {
+        CommandResult {
+            command: command(&["forge", "snapshot", "--check"]),
+            exit_code,
+            stdout: stdout.to_owned(),
+            stderr: stderr.to_owned(),
+            duration_ms: 1,
+        }
+    }
+
+    #[test]
+    fn accepts_only_byte_identical_foundry_snapshot_false_diffs() {
+        let output = r#"Ran 2 test suites in 1.00s (2.00s CPU time): 4 tests passed, 0 failed, 1 skipped (5 total tests)
+Diff in "ForkTest::testRequiresFork()": consumed "(gas: 0)" gas, expected "(gas: 0)" gas
+Diff in "InvariantTest::invariant_Solvent()": consumed "(runs: 256, calls: 128000, reverts: 0)" gas, expected "(runs: 256, calls: 128000, reverts: 0)" gas
+"#;
+        assert_eq!(
+            identical_foundry_snapshot_diff_count(&snapshot_result(1, output, "")),
+            Some(2)
+        );
+
+        let changed = output.replace("expected \"(gas: 0)\"", "expected \"(gas: 1)\"");
+        assert_eq!(
+            identical_foundry_snapshot_diff_count(&snapshot_result(1, &changed, "")),
+            None
+        );
+        assert_eq!(
+            identical_foundry_snapshot_diff_count(&snapshot_result(2, output, "")),
+            None
+        );
+        assert_eq!(
+            identical_foundry_snapshot_diff_count(&snapshot_result(1, output, "forge error")),
+            None
+        );
+    }
+
+    #[test]
+    fn rejects_snapshot_false_diffs_without_a_clean_test_summary() {
+        let output = r#"Ran 1 test suite in 1.00s: 0 tests passed, 1 failed, 0 skipped (1 total tests)
+Diff in "HookTest::testGas()": consumed "(gas: 1)" gas, expected "(gas: 1)" gas
+"#;
+        assert_eq!(
+            identical_foundry_snapshot_diff_count(&snapshot_result(1, output, "")),
+            None
+        );
+
+        let spoofed = format!(
+            "{output}Ran 1 test suite in 1.00s: 1 test passed, 0 failed, 0 skipped (1 total tests)\n{}",
+            "Diff in \"HookTest::testGas()\": consumed \"(gas: 1)\" gas, expected \"(gas: 1)\" gas"
+        );
+        assert_eq!(
+            identical_foundry_snapshot_diff_count(&snapshot_result(1, &spoofed, "")),
+            None
         );
     }
 }

@@ -134,7 +134,7 @@ This command is for maintainers of this repository:
 
 ```sh
 v4hook template refresh \
-  --version 2.0.0 \
+  --version 2.0.1 \
   --source Uniswap/v4-template \
   --reference main
 ```
@@ -182,7 +182,11 @@ moves. The failing check prints the fingerprint needed for an independently revi
 
 `checks.codeSize` enforces limits no larger than the EVM runtime and initcode ceilings. The
 configured `checks.gasSnapshot` must be a failing `forge snapshot --check` command against a
-committed snapshot. Update that snapshot only after reviewing and explaining the gas change.
+committed snapshot. Update that snapshot only after reviewing and explaining the gas change. Some
+Foundry versions return exit code 1 for skipped-test and invariant-metric rows even when the current
+and committed values are byte-identical. `v4hook check` accepts that result only when Forge reports
+zero failed tests, standard error is empty, and every reported snapshot diff is byte-identical; any
+real, malformed, or mixed diff still fails the gas-budget gate.
 
 For a broadcast step that depends on contract roles, declare each role and address in the step's
 `requiredAuthorities` object. Use `deployment.requiredAuthorities` for live hook deployment and

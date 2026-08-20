@@ -7,7 +7,7 @@ use crate::{
     model::{CheckEvidence, CodeSizeSummary, FoundryTestSummary, LoadedConfig},
     process::{
         CommandResult, FoundryTestKind, FoundryTestRequirements, require_foundry_tests,
-        require_success,
+        require_gas_snapshot, require_success,
     },
     slither::run_slither,
     util::{decode_hex, resolve_from, sha256_bytes, stable_json, status},
@@ -138,7 +138,13 @@ pub fn run_check_suite(config: &LoadedConfig) -> Result<Vec<CheckEvidence>> {
             checks.push(code_size_evidence(config)?);
             if !config.value.checks.gas_snapshot.is_empty() {
                 status("Checking the committed gas budget...");
-                let result = require_success(&config.value.checks.gas_snapshot, cwd, None, false)?;
+                let (result, identical_diffs) =
+                    require_gas_snapshot(&config.value.checks.gas_snapshot, cwd, None)?;
+                if identical_diffs > 0 {
+                    status(&format!(
+                        "Foundry returned exit 1 for {identical_diffs} byte-identical snapshot rows; the committed gas budget is unchanged."
+                    ));
+                }
                 checks.push(evidence("gas-budget", &result, None));
             }
         }

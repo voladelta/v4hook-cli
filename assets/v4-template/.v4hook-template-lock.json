@@ -1,7 +1,7 @@
 {
   "schemaVersion": "v4hook.template-lock.v2",
-  "templateVersion": "2.0.0",
-  "snapshot": "v4hook-template-2.0.0",
+  "templateVersion": "2.0.1",
+  "snapshot": "v4hook-template-2.0.1",
   "repository": "Uniswap/v4-template",
   "commit": "1fbf95547791f0821a170b88c750cb2e04e6818b",
   "dependencies": {
@@ -31,7 +31,7 @@
       "ownership": "managed"
     },
     "AGENTS.md": {
-      "sha256": "sha256:915a25055b92d60ff7e96eb2126df631d4eecf142f12ce95d052f625f59d28c1",
+      "sha256": "sha256:92c8a868a9cf42ab8fd46ca40e623d42020ba242e5d667489eb2cbad1880871b",
       "ownership": "managed"
     },
     "LICENSE": {

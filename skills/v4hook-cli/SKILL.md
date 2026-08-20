@@ -9,9 +9,10 @@ Turn a hook idea into a working `v4hook` project and drive its authorized lifecy
 the pinned scaffold, installed CLI, and project configuration as sources of truth. Generated Solidity
 is a draft until it compiles and passes the configured gates.
 
-Use four leading words throughout the workflow: **authority** scopes mutation, **bound** ties
-evidence to exact inputs, **red** reproduces a defect for the expected reason, and **green** means
-the intended configured workload executed and passed.
+Use five leading words throughout the workflow: **authority** scopes mutation, **bound** ties
+evidence to exact inputs, **frozen** preserves the pre-edit verifier's intended workload, **red**
+reproduces a defect for the expected reason, and **green** means the intended configured workload
+executed and passed.
 
 ## Route the request
 
@@ -80,7 +81,8 @@ Complete these gates before the first edit:
    its economic formulas and allocations, liquidity provenance, custody and recovery, trust
    boundaries, role separation, and supported paths. Preserve every item unless the user approves a
    material design change.
-4. Record the pre-edit verification baseline required by the integration contract.
+4. Record the exact pre-edit gate commands, filters, effective settings, and executed counts as the
+   frozen verification manifest required by the integration contract.
 5. Load and apply `v4-security-foundations` for Solidity hook implementation or review. If it is
    unavailable, say so and do not claim that review occurred. Follow project `AGENTS.md` routing and
    use current official Foundry and Uniswap guidance for version-sensitive behavior and addresses;
@@ -123,6 +125,12 @@ exercise the changed production path, and the focused gate is green.
 Make the narrowest relevant reproducer red for the expected reason, repair the defect, then make that
 gate green. Run the configured gates proportionate to the change. For a completed hook
 implementation, read [local-workflow.md](references/local-workflow.md) and finish its complete check.
+
+Keep the frozen workload scope through every repair. Repair a verifier or tooling defect by making
+the same intended workload reliable; a replacement command, narrower filter, reduced count, weaker
+severity, or removed assertion cannot turn red into green. When the original gate remains
+nondeterministic or incompatible after evidence-changing attempts, preserve its failure and report
+the exact blocker instead of claiming completion.
 
 Each repair iteration must produce new evidence: a new diagnostic, narrower red reproducer, repaired
 defect class, or broader passing check. After two iterations against the same failure produce no new

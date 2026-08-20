@@ -189,7 +189,7 @@ fn init_keeps_captured_stdout_machine_readable() {
         "created-with-cli = \"{}\"",
         env!("CARGO_PKG_VERSION")
     )));
-    assert!(metadata.contains("version = \"2.0.0\""));
+    assert!(metadata.contains("version = \"2.0.1\""));
     assert!(destination.0.join(".env.example").is_file());
     assert!(destination.0.join(".gas-snapshot").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());
