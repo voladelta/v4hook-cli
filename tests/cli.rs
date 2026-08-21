@@ -1,6 +1,7 @@
 use std::{
     fs,
     net::{TcpListener, TcpStream},
+    os::unix::fs::{PermissionsExt, symlink},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
@@ -43,6 +44,91 @@ impl Drop for DaemonGuard {
 fn available_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").expect("allocate test port");
     listener.local_addr().expect("read test port").port()
+}
+
+struct InstallerFixture {
+    directory: TemporaryDirectory,
+    repository: PathBuf,
+    source: PathBuf,
+    fake_cargo: PathBuf,
+    install_root: PathBuf,
+    skills_root: PathBuf,
+    destination: PathBuf,
+}
+
+impl InstallerFixture {
+    fn new() -> Self {
+        let directory = TemporaryDirectory::new("installer");
+        let repository = directory.0.join("repository");
+        let source = repository.join("skills/v4hook-cli");
+        fs::create_dir_all(repository.join("skills")).expect("create installer fixture");
+        fs::copy(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("install.sh"),
+            repository.join("install.sh"),
+        )
+        .expect("copy installer");
+        let copied = Command::new("cp")
+            .args(["-R"])
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/v4hook-cli"))
+            .arg(&source)
+            .status()
+            .expect("copy skill fixture");
+        assert!(copied.success());
+        fs::create_dir_all(source.join(".hidden/nested")).expect("create hidden fixture directory");
+        fs::write(source.join(".hidden/nested/value"), "hidden\n").expect("write hidden fixture");
+
+        let fake_cargo = directory.0.join("fake-cargo");
+        fs::write(
+            &fake_cargo,
+            r#"#!/bin/sh
+set -eu
+install_root=
+while [ "$#" -gt 0 ]; do
+    if [ "$1" = "--root" ]; then
+        install_root=$2
+        shift 2
+    else
+        shift
+    fi
+done
+mkdir -p "$install_root/bin"
+printf '#!/bin/sh\nprintf "v4hook 0.4.7\\n"\n' > "$install_root/bin/v4hook"
+chmod +x "$install_root/bin/v4hook"
+"#,
+        )
+        .expect("write fake cargo");
+        fs::set_permissions(&fake_cargo, fs::Permissions::from_mode(0o755))
+            .expect("make fake cargo executable");
+
+        let install_root = directory.0.join("custom-binary-root");
+        let skills_root = directory.0.join("custom-skills-root");
+        let destination = skills_root.join("v4hook-cli");
+        fs::create_dir_all(&destination).expect("create stale destination");
+        fs::write(destination.join("SKILL.md"), "stale\n").expect("write stale skill");
+        fs::write(destination.join("stale-only"), "remove me\n").expect("write stale file");
+        fs::write(skills_root.join("sibling-sentinel"), "keep me\n")
+            .expect("write sibling sentinel");
+
+        Self {
+            directory,
+            repository,
+            source,
+            fake_cargo,
+            install_root,
+            skills_root,
+            destination,
+        }
+    }
+
+    fn run(&self) -> std::process::Output {
+        Command::new("/bin/sh")
+            .arg(self.repository.join("install.sh"))
+            .env("V4HOOK_CARGO", &self.fake_cargo)
+            .env("V4HOOK_INSTALL_ROOT", &self.install_root)
+            .env("V4HOOK_SKILLS_ROOT", &self.skills_root)
+            .output()
+            .expect("run isolated installer")
+    }
 }
 
 #[test]
@@ -309,26 +395,87 @@ fn orchestrated_delivery_requires_profiled_non_overlapping_delegation() {
 }
 
 #[test]
-fn installer_replaces_the_global_skill_without_python_dependencies() {
-    let installer = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("install.sh"))
-        .expect("installer exists");
+fn installer_stages_and_replaces_only_the_selected_skill() {
+    let fixture = InstallerFixture::new();
+    let installed = fixture.run();
+    assert!(
+        installed.status.success(),
+        "installer failed: {}",
+        String::from_utf8_lossy(&installed.stderr)
+    );
+    assert!(fixture.install_root.join("bin/v4hook").is_file());
+    assert!(fixture.skills_root.join("sibling-sentinel").is_file());
+    assert!(!fixture.destination.join("stale-only").exists());
+    assert_eq!(
+        fs::read_to_string(fixture.destination.join(".hidden/nested/value"))
+            .expect("installed hidden nested file"),
+        "hidden\n"
+    );
+    let exact_copy = Command::new("diff")
+        .args(["-r"])
+        .arg(&fixture.source)
+        .arg(&fixture.destination)
+        .status()
+        .expect("compare installed skill tree");
+    assert!(exact_copy.success());
 
-    let remove = "rm -rf -- \"$skill_destination\"";
-    let copy = "cp -R -- \"$skill_source\" \"$skill_destination\"";
-    let verify = "[ ! -f \"$skill_destination/SKILL.md\" ]";
-    let remove_position = installer.find(remove).expect("installer removes old skill");
-    let copy_position = installer
-        .find(copy)
-        .expect("installer copies repository skill");
-    let verify_position = installer
-        .find(verify)
-        .expect("installer verifies copied skill");
+    let aliased_skills_parent = fixture.directory.0.join("aliased-skills-parent");
+    symlink(fixture.repository.join("skills"), &aliased_skills_parent)
+        .expect("create physical alias");
+    let alias_install_root = fixture.directory.0.join("alias-binary-root");
+    let alias_rejected = Command::new("/bin/sh")
+        .arg(fixture.repository.join("install.sh"))
+        .env("V4HOOK_CARGO", &fixture.fake_cargo)
+        .env("V4HOOK_INSTALL_ROOT", &alias_install_root)
+        .env("V4HOOK_SKILLS_ROOT", &aliased_skills_parent)
+        .output()
+        .expect("run installer against physical alias");
+    assert!(!alias_rejected.status.success());
+    assert!(String::from_utf8_lossy(&alias_rejected.stderr).contains("installation source"));
+    assert!(!alias_install_root.exists());
+    assert!(fixture.source.join("SKILL.md").is_file());
 
-    assert!(installer.contains("/.agents/skills"));
-    assert!(remove_position < copy_position);
-    assert!(copy_position < verify_position);
-    assert!(!installer.contains("PyYAML"));
-    assert!(!installer.contains("quick_validate"));
+    let failing_tools = fixture.directory.0.join("failing-tools");
+    fs::create_dir_all(&failing_tools).expect("create failing tool directory");
+    let failing_copy = failing_tools.join("cp");
+    fs::write(&failing_copy, "#!/bin/sh\nexit 73\n").expect("write failing cp");
+    fs::set_permissions(&failing_copy, fs::Permissions::from_mode(0o755))
+        .expect("make failing cp executable");
+    fs::write(
+        fixture.destination.join("preserve-on-failure"),
+        "preserved\n",
+    )
+    .expect("write preservation sentinel");
+    let path = format!(
+        "{}:{}",
+        failing_tools.display(),
+        std::env::var("PATH").expect("PATH is set")
+    );
+    let failed_install_root = fixture.directory.0.join("failed-binary-root");
+    let failed = Command::new("/bin/sh")
+        .arg(fixture.repository.join("install.sh"))
+        .env("PATH", path)
+        .env("V4HOOK_CARGO", &fixture.fake_cargo)
+        .env("V4HOOK_INSTALL_ROOT", &failed_install_root)
+        .env("V4HOOK_SKILLS_ROOT", &fixture.skills_root)
+        .output()
+        .expect("force staging copy failure");
+    assert!(!failed.status.success());
+    assert!(!failed_install_root.exists());
+    assert_eq!(
+        fs::read_to_string(fixture.destination.join("preserve-on-failure"))
+            .expect("prior skill survives staging failure"),
+        "preserved\n"
+    );
+    assert!(
+        fs::read_dir(&fixture.skills_root)
+            .expect("read skills root")
+            .all(|entry| !entry
+                .expect("read skills root entry")
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".v4hook-cli.install."))
+    );
 }
 
 #[test]
