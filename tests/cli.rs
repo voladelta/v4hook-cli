@@ -1,7 +1,7 @@
 use std::{
     fs,
     net::{TcpListener, TcpStream},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
     time::Duration,
@@ -199,6 +199,8 @@ fn init_keeps_captured_stdout_machine_readable() {
     assert!(agent_instructions.contains("Those early reads are preload only"));
     assert!(agent_instructions.contains("until step 1 establishes this project's pinned APIs"));
     assert!(agent_instructions.contains("ETHSkills root is not a Solidity startup dependency"));
+    assert!(agent_instructions.contains("explicitly selects each child's model and reasoning"));
+    assert!(agent_instructions.contains("keeps one non-writing chief"));
     assert!(!agent_instructions.contains("https://ethskills.com/SKILL.md"));
     let metadata = fs::read_to_string(destination.0.join(".v4hook.toml"))
         .expect("scaffold includes template metadata");
@@ -206,7 +208,7 @@ fn init_keeps_captured_stdout_machine_readable() {
         "created-with-cli = \"{}\"",
         env!("CARGO_PKG_VERSION")
     )));
-    assert!(metadata.contains("version = \"2.2.5\""));
+    assert!(metadata.contains("version = \"2.2.6\""));
     assert!(destination.0.join(".env.example").is_file());
     assert!(destination.0.join(".gas-snapshot").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());
@@ -227,6 +229,26 @@ fn init_keeps_captured_stdout_machine_readable() {
         .expect("scaffold includes BaseScript.sol");
     assert!(base_script.contains("V4HOOK_HOOK_ADDRESS"));
     assert!(base_script.contains("V4HOOK_PREDICTED_ADDRESS"));
+}
+
+#[test]
+fn orchestrated_delivery_requires_exact_profiles_and_a_non_writing_chief() {
+    let workflow = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("skills/v4hook-cli/references/orchestrated-delivery.md"),
+    )
+    .expect("orchestrated delivery reference exists");
+
+    assert!(workflow.contains("every dispatch sets both explicitly"));
+    assert!(workflow.contains("relying on inheritance is an invalid dispatch"));
+    assert!(workflow.contains("| Scout | `gpt-5.6-luna` | xhigh |"));
+    assert!(workflow.contains("| Implementor | `gpt-5.6-sol` | medium |"));
+    assert!(workflow.contains("| Reviewer | `gpt-5.6-sol` | high |"));
+    assert!(workflow.contains("The chief remains non-writing"));
+    assert!(
+        workflow.contains("Elapsed waits and an unchanged worktree are observations, not proof")
+    );
+    assert!(workflow.contains("redispatch a fresh child with the exact role profile"));
 }
 
 #[test]

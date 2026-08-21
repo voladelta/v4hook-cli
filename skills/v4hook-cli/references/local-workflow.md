@@ -34,13 +34,14 @@ Approval gates and blockers:
 Frontier:
 Latest failure and hypothesis:
 Selected next action and verifier:
-Active child contract and ownership:
+Active child role, requested profile, contract, ownership, and status:
 Latest verified checkpoint:
 ```
 
 Update it after each material observation and accepted checkpoint. Recover from the ledger plus the
 actual Git and verification state, not from a conversational summary. Keep only authorized,
-prerequisite-complete actions on the frontier.
+prerequisite-complete actions on the frontier. A child dispatch, checkpoint request, interruption,
+or completion is a material observation and must update the ledger before another role acts.
 
 Cycle `diagnose → focused proof → integrate → review → full gate`. A focused pass advances
 evidence; only the configured full check advances the CLI verification lifecycle. In chief-led

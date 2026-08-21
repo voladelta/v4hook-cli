@@ -102,7 +102,9 @@ Complete these gates before the first edit:
 2. For a complete hook implementation or material adaptation when multi-agent delegation is
    available, read [orchestrated-delivery.md](references/orchestrated-delivery.md). The chief uses
    `task-contracts` to own one parent contract and `workflow-convergence` to own one ledger and
-   frontier; children receive only bounded role contracts.
+   frontier. It passes the prescribed model and reasoning explicitly on every child dispatch and
+   remains a non-writing coordinator after candidate implementation begins; children receive only
+   bounded role contracts.
 3. Convert the request into a specification covering lifecycle events, user and router identity,
    fund movement, return deltas, mutable state, administration, constructor inputs, supported
    tokens, failure behavior, and representative pool behavior.

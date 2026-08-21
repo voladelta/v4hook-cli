@@ -7,21 +7,30 @@ task contracts and never inherit parent completion authority.
 
 For ordinary one-agent changes, keep the direct `inspect → implement → verify` path.
 
-## Use role profiles
+## Dispatch exact role profiles
 
-When the runtime permits model selection, use these defaults:
+When the delegation tool accepts model and reasoning arguments, every dispatch sets both explicitly.
+Omitting either argument and relying on inheritance is an invalid dispatch, even when inheritance
+would happen to select the same profile.
 
 | Role | Model | Reasoning | Responsibility |
 | --- | --- | --- | --- |
 | Chief | `gpt-5.6-sol` | high | Parent contract, architecture, ledger, integration, terminal decision |
 | Scout | `gpt-5.6-luna` | xhigh | Narrow documentation or pinned-API research; read-only |
 | Implementor | `gpt-5.6-sol` | medium | Bounded production slices and focused proof |
-| Reviewer | `gpt-5.6-sol` | high | Fresh adversarial review; read-only |
+| Reviewer | `gpt-5.6-sol` | high | Fresh adversarial review; tracked source read-only |
 | Fixer | `gpt-5.6-sol` | medium | Accepted root causes and focused regression proof |
 | Verifier | `gpt-5.6-sol` | high | Independent unchanged gates; read-only |
 
-Record the actual profile when a default is unavailable. Profile availability does not weaken the
-parent gate, and it does not justify restarting verified work.
+Record the requested profile in the ledger before dispatch and confirm it from the tool result when
+the runtime exposes the resolved profile. If an exact profile is unavailable, do not silently
+downgrade or inherit another profile; preserve the frontier and classify the need for a user-approved
+alternative as Escalated. Profile availability never weakens the parent gate.
+
+At the delegation callsite, copy `model` and `reasoning_effort` from the table into explicit tool
+arguments. A result that does not echo its resolved profile is acceptable because the recorded call
+arguments are the evidence; it is not a reason to omit them. If either argument was omitted,
+interrupt that child before accepting work, record the invalid dispatch, and redispatch correctly.
 
 ## Keep one chief
 
@@ -30,6 +39,13 @@ the smallest sufficient parent contract, and creates the ignored ledger from
 [local-workflow.md](local-workflow.md). The chief crafts every child contract, inspects each returned
 claim, integrates accepted work, and alone classifies the parent as Complete, Escalated, or
 Blocked.
+
+The chief may initialize the scaffold and author the parent contract, specification, frozen
+verification inputs, ledger, and chief adjudication. Once an implementor or fixer owns the candidate,
+the chief remains a coordinator: it inspects state, dispatches roles, accepts evidence, integrates
+clean commits, and runs parent controls, but it does not author or repair production contracts,
+tests, scripts, implementation configuration, or candidate documentation. Every candidate change,
+including a trivial repair, belongs to an explicitly profiled implementor or fixer.
 
 Use one writer at a time in a shared worktree. Parallel writers require isolated worktrees. Every
 writer contract explicitly grants or withholds Git working-tree, index, and commit authority. When
@@ -58,6 +74,26 @@ Handoff point and child gate:
 
 Omit fields that do not change execution. Each child gate advances one named parent requirement and
 ends before parent completion.
+
+Immediately before dispatch, update the ledger with the child role, explicit model and reasoning,
+contract, owned surface, Git authority, and expected verifier. Immediately after dispatch, record
+the returned child identity and status. Update the same entry on every checkpoint, interruption, or
+completion; do not leave a running writer absent from the authoritative ledger.
+
+## Recover a non-progressing writer
+
+Elapsed waits and an unchanged worktree are observations, not proof that a writer is stuck. Before
+interrupting an implementor or fixer:
+
+1. Check the active child status, relevant live processes, and actual shared-worktree state.
+2. Ask for a checkpoint containing its current action, produced artifacts, latest command, and
+   blocker or next verifier.
+3. Preserve any partial patch or evidence and update the ledger with the observed result.
+
+When interruption is still warranted, redispatch a fresh child with the exact role profile and a
+narrower or changed-hypothesis contract. The chief remains non-writing. If two correctly profiled
+writer attempts produce no evidence delta, change decomposition or classify Escalated/Blocked under
+the parent rules; do not convert the chief into the implementor or fixer.
 
 ## Scout unresolved boundaries
 
@@ -141,8 +177,7 @@ Child gate: a clean candidate ready for fresh review. Never mark the parent Comp
 
 Every source change invalidates the prior review. Dispatch a fresh reviewer for the repaired commit
 and repeat `review → accepted repair → focused proof` until the exact candidate has no accepted
-must-fix finding. A trivial non-production correction may remain with the chief only when its owner,
-cause, and proof are unambiguous.
+must-fix finding.
 
 ## Verify the reviewed candidate
 

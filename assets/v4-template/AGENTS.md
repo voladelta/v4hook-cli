@@ -43,9 +43,9 @@ startup research.
    the hook artifact, permissions, scripts, test gates, and pinned dependency lane are known.
 2. Use the first-party `v4hook-cli` skill when it is available. It owns the scaffold, configuration,
    checks, plan, simulation and live-action boundaries. For a delegated complete build, its chief-led
-   workflow gives each child a bounded role contract while one chief retains the parent contract,
-   ledger and completion decision. Treat other generators as optional sources of implementation
-   drafts.
+   workflow explicitly selects each child's model and reasoning, gives it a bounded role contract,
+   and keeps one non-writing chief responsible for the parent contract, ledger and completion
+   decision. Treat other generators as optional sources of implementation drafts.
 3. Before implementing or reviewing hook Solidity, load `v4-security-foundations`. If it is
    unavailable and project-local skill installation is supported, install only that official
    [Uniswap AI skill](https://github.com/Uniswap/uniswap-ai):
