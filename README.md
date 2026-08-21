@@ -24,15 +24,13 @@ Install the locked, release-optimised binary in `~/.local/bin`:
 ```
 
 The installer replaces `~/.agents/skills/v4hook-cli` with the repository's current skill and installs
-the release binary. Set `V4HOOK_INSTALL_ROOT` to use another binary installation root and
-`V4HOOK_SKILLS_ROOT` to use another skills directory. The binary root's `bin` directory must be in
-your `PATH`.
+the release binary. Set `V4HOOK_INSTALL_ROOT` to use another binary installation root. Its `bin`
+directory must be in your `PATH`.
 
 Remove the default installation with:
 
 ```sh
-rm -f ~/.local/bin/v4hook
-rm -rf ~/.agents/skills/v4hook-cli
+rm ~/.local/bin/v4hook
 ```
 
 The release profile favours runtime speed. It uses optimisation level 3, fat link-time optimisation and one code generation unit.
