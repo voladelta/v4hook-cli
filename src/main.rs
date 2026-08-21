@@ -493,7 +493,7 @@ fn run() -> Result<i32> {
                 let human = if state_value.stage == verification::VerificationStage::Complete {
                     "Verification is complete: the reviewed source passed the unchanged second gate."
                 } else {
-                    "Recorded a first-green candidate. Run adversarial review before the second gate."
+                    "Recorded a first-green candidate. Bind its completed adversarial review before the second gate."
                 };
                 print_output(&result, human, force_json)?;
             }

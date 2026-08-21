@@ -1,11 +1,13 @@
 # Final adversarial review
 
-Run this review after the first complete green check. Treat the implementation, tests, scripts,
-configuration, and reported results as untrusted evidence. A passing command is insufficient when
-its workload changed, its filters matched nothing, or its tests skipped the lifecycle under review.
+For chief-led delivery, run this review on a clean focused-green candidate before the expensive
+complete gate. For a review-only request, apply it to the exact candidate in scope. Treat the
+implementation, tests, scripts, configuration, and reported results as untrusted evidence. A
+passing command is insufficient when its workload changed, its filters matched nothing, or its
+tests skipped the lifecycle under review.
 
 For a fresh delegated review, repair, or independent verification pass, follow
-[delegated-review-loop.md](delegated-review-loop.md). Treat every child result as a claim that the
+[orchestrated-delivery.md](orchestrated-delivery.md). Treat every child result as a claim that the
 coordinator must inspect against the parent contract.
 
 ## Reconstruct the intended system
@@ -37,6 +39,10 @@ Record at least:
 | Static analysis | detector set, project-path filters and finding triage |
 | Size/gas | runtime and initcode ceilings, committed snapshot and reviewed deltas |
 | Fork simulation | stage environment, executed test count and postconditions |
+
+During a chief-led pre-gate review, compare the frozen commands and settings with the candidate and
+inspect the focused evidence already available. The verifier owns confirmation of actual full-gate
+counts after the candidate is reviewer-clean.
 
 Reject any unapproved reduction, including adding explicit values below inherited defaults,
 narrowing filters, deleting assertions, swallowing reverts, accepting only one successful handler
@@ -70,13 +76,15 @@ reject stale allowances. Preserve fail-closed handling for the severities requir
 policy. Compare the final code-size evidence and committed gas snapshot against the original design;
 an unexplained budget increase is a must-fix review finding.
 
-## Finish the second pass
+## Finish the reviewed candidate
 
-Write the classified review report under `.v4hook/` and bind it to the first-green source with
-`v4hook verification review`. Repair every must-fix item, make its narrow reproducer red, repair it
-to green, and commit it. The next `v4hook verification check` intentionally records the changed
-commit as a new first-green candidate; repeat this review against that digest. Run the unchanged
-check again only after the new review is bound. Report before/after gate settings and actual
-executed/pass/skip counts. Treat only lifecycle state `complete` as same-source second-pass evidence.
-Only residual external assurance, unavailable launch inputs, or actions outside the user's granted
-authority may remain; locally actionable defects are not residual risks.
+Write the classified review report under `.v4hook/`. Repair every accepted must-fix item, make its
+narrow reproducer red, repair it to green, and commit it. Every changed source requires a fresh
+review; do not carry a report across candidate digests.
+
+After one exact candidate has no accepted must-fix, the verifier runs `v4hook verification check`,
+binds that existing report with `v4hook verification review`, and runs the unchanged check again.
+Report before/after gate settings and actual executed/pass/skip counts. Treat only lifecycle state
+`complete` as same-source second-pass evidence. Only residual external assurance, unavailable launch
+inputs, or actions outside the user's granted authority may remain; locally actionable defects are
+not residual risks.

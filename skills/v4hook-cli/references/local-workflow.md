@@ -39,10 +39,12 @@ Update it after each material observation and accepted checkpoint. Recover from 
 actual Git and verification state, not from a conversational summary. Keep only authorized,
 prerequisite-complete actions on the frontier.
 
-Cycle `diagnose → focused proof → integrate → full gate`. A focused pass advances evidence; only the
-configured full check advances the parent gate. A changed source after review returns the lifecycle
-to first green and therefore adds review and the unchanged second check back to the frontier. Repeat
-only when new evidence changes the hypothesis or verifier. Classify the parent outcome directly:
+Cycle `diagnose → focused proof → integrate → review → full gate`. A focused pass advances
+evidence; only the configured full check advances the CLI verification lifecycle. In chief-led
+delivery, obtain a fresh reviewer-clean candidate before spending the full configured workload. A
+source change after review invalidates that report and adds fresh review, first green, bound review,
+and the unchanged second check back to the frontier. Repeat only when new evidence changes the
+hypothesis or verifier. Classify the parent outcome directly:
 
 - **Complete:** the requested local behavior and required verification lifecycle are green.
 - **Escalated:** the next material evidence requires new user authority or an external dependency.
@@ -102,13 +104,14 @@ reporting a raw `check` result as completion:
 2. Run `v4hook verification freeze --config v4hook.config.json --contract
    verification-contract.json`. The state freezes the tracked baseline, check configuration,
    effective `forge config`, and verification-contract digest.
-3. Implement and commit the candidate. Run `v4hook verification check --config
-   v4hook.config.json`; this is first-green evidence only.
-4. Review that exact commit and write the report under `.v4hook/`. Bind it with `v4hook verification
-   review --report .v4hook/adversarial-review.md`.
+3. Implement and commit the candidate. Review that exact commit and write the report under
+   `.v4hook/`; repair and re-review changed source until the candidate has no accepted must-fix.
+4. Run `v4hook verification check --config v4hook.config.json`; this is first-green evidence only.
+   Bind the existing exact-candidate report with `v4hook verification review --report
+   .v4hook/adversarial-review.md`.
 5. Run the same verification check again. Only the `complete` state proves that the reviewed source
    digest passed twice. Any committed source change replaces the candidate with a new first-green
-   cycle; review and second green must then be repeated.
+   cycle; fresh review, bound review, and second green must then be repeated.
 
 The contract validates exact names emitted by the configured unit, fuzz, and invariant gates. A
 general file or suite reference is not a mapping. Keep the state file and review report together;

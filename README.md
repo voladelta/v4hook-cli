@@ -166,10 +166,11 @@ v4hook verification freeze \
   --config v4hook.config.json \
   --contract verification-contract.json
 
-# Implement, test, and commit the candidate, then record first green.
+# Implement, test, review, repair, and commit one reviewer-clean candidate.
+# Record first green for that exact source.
 v4hook verification check --config v4hook.config.json
 
-# Review the exact first-green commit and write the report outside the tracked source tree.
+# Bind the exact candidate's existing review report outside the tracked source tree.
 v4hook verification review --report .v4hook/adversarial-review.md
 
 # The same source commit and unchanged report must pass again.

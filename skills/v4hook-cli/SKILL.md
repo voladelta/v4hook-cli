@@ -99,21 +99,25 @@ Complete these gates before the first edit:
 
 1. Read [integration-contract.md](references/integration-contract.md) for every change to Solidity,
    scripts, tests, permissions, configuration, or simulation wiring.
-2. Convert the request into a specification covering lifecycle events, user and router identity,
+2. For a complete hook implementation or material adaptation when multi-agent delegation is
+   available, read [orchestrated-delivery.md](references/orchestrated-delivery.md). The chief uses
+   `task-contracts` to own one parent contract and `workflow-convergence` to own one ledger and
+   frontier; children receive only bounded role contracts.
+3. Convert the request into a specification covering lifecycle events, user and router identity,
    fund movement, return deltas, mutable state, administration, constructor inputs, supported
    tokens, failure behavior, and representative pool behavior.
-3. When adapting an existing or reference implementation, record a protected-invariant ledger for
+4. When adapting an existing or reference implementation, record a protected-invariant ledger for
    its economic formulas and allocations, liquidity provenance, custody and recovery, trust
    boundaries, role separation, and supported paths. Preserve every item unless the user approves a
    material design change.
-4. Record the exact pre-edit gate commands, filters, effective settings, and executed counts as the
+5. Record the exact pre-edit gate commands, filters, effective settings, and executed counts as the
    frozen verification manifest required by the integration contract.
-5. Replace the scaffold verification-contract example with a tracked contract mapping every
+6. Replace the scaffold verification-contract example with a tracked contract mapping every
    protected invariant to exact test names in the configured unit, fuzz, or invariant gate. Give an
    invariant without local proof one explicit external evidence gap instead of a plausible test
    claim. Commit the specification, ledger, active configuration, verification contract, and
    scaffold baseline before editing production code, then run `v4hook verification freeze`.
-6. Load and apply `v4-security-foundations` for Solidity hook implementation or review. If it is
+7. Load and apply `v4-security-foundations` for Solidity hook implementation or review. If it is
    unavailable, say so and do not claim that review occurred. Follow project `AGENTS.md` routing and
    use current official Foundry and Uniswap guidance for version-sensitive behavior and addresses;
    confirm CLI and Foundry flags against installed `--help` output.
@@ -163,10 +167,10 @@ A completed hook implementation or material adaptation uses the ignored v4hook l
 contract, then resume from that ledger and actual repository state until the parent gate is
 Complete, Escalated, or Blocked.
 
-When subagent delegation is available, read
-[delegated-review-loop.md](references/delegated-review-loop.md) before first-green review. Use
-`task-contracts` to bound each fresh reviewer, fixer, and verifier; the coordinator retains parent
-contract ownership and alone decides terminal status.
+When the chief-led workflow applies, follow
+[orchestrated-delivery.md](references/orchestrated-delivery.md): review the focused-green clean
+candidate, repair accepted findings, and obtain a fresh reviewer-clean report before running the
+expensive complete lifecycle. The chief retains parent ownership and alone decides terminal status.
 
 Make the narrowest relevant reproducer red for the expected reason, repair the defect, then make that
 gate green. Run the configured gates proportionate to the change. For a completed hook
@@ -178,18 +182,19 @@ severity, or removed assertion cannot turn red into green. When the original gat
 nondeterministic or incompatible after evidence-changing attempts, preserve its failure and report
 the exact blocker instead of claiming completion.
 
-A green first pass is not completion for a hook implementation or material adaptation. Commit the
-candidate and use `v4hook verification check` so the CLI binds first-green evidence to that clean
-source digest and validates every exact test mapping. Read [final-review.md](references/final-review.md),
-inspect that candidate diff as untrusted input, reapply `v4-security-foundations`, and compare it
-with the original requirements, protected-invariant ledger, and pre-edit verification baseline.
-Write the review report under ignored `.v4hook/` state and bind it with `v4hook verification review`.
-Repair every must-fix finding, commit the repair, and run `v4hook verification check`; a changed
-source becomes a new first-green candidate and therefore requires a new review. Completion requires
-the lifecycle state `complete`, produced only by a second check of the unchanged reviewed source and
-unchanged report. Keep the tracked tree unchanged after completion; if a tracked evidence document
-must change, commit it and repeat first-green, review, and second-green for that new source. Passing
-gates and fork evidence are necessary evidence, not a security audit.
+A focused green candidate is not completion for a hook implementation or material adaptation. Read
+[final-review.md](references/final-review.md), inspect that clean candidate as untrusted input,
+reapply `v4-security-foundations`, and compare it with the original requirements,
+protected-invariant ledger, and pre-edit verification baseline. Repair every accepted must-fix and
+repeat fresh review for each changed source until one exact commit is reviewer-clean.
+
+Then use `v4hook verification check` to bind first-green evidence to that reviewed source and
+validate every exact test mapping. Bind its existing ignored `.v4hook/` review report with
+`v4hook verification review`, then run the unchanged check again. Completion requires lifecycle
+state `complete`, produced only by the same reviewed source and unchanged report passing twice. Keep
+the tracked tree unchanged after completion; if a tracked evidence document must change, commit it
+and repeat review, first-green, bound review, and second-green for that new source. Passing gates and
+fork evidence are necessary evidence, not a security audit.
 
 ## Advance the lifecycle
 
