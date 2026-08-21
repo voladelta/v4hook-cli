@@ -8,6 +8,7 @@ skill_source="$repository_dir/skills/v4hook-cli"
 skill_parent=${V4HOOK_SKILLS_ROOT:-"${HOME:?HOME is required}/.agents/skills"}
 skill_destination="$skill_parent/v4hook-cli"
 cargo_command=${V4HOOK_CARGO:-cargo}
+copy_command=${V4HOOK_CP:-cp}
 staging_directory=
 
 cleanup() {
@@ -41,9 +42,14 @@ if [ "$skill_source_physical" = "$skill_destination_physical" ] || \
     exit 1
 fi
 
+if ! command -v "$copy_command" >/dev/null 2>&1; then
+    echo "cp is required to stage the v4hook-cli skill." >&2
+    exit 1
+fi
+
 staging_directory=$(mktemp -d "$skill_parent/.v4hook-cli.install.XXXXXX")
 staged_skill="$staging_directory/v4hook-cli"
-cp -R -- "$skill_source" "$staged_skill"
+"$copy_command" -R -- "$skill_source" "$staged_skill"
 
 if [ ! -f "$staged_skill/SKILL.md" ]; then
     echo "staged skill is missing $staged_skill/SKILL.md" >&2

@@ -435,9 +435,7 @@ fn installer_stages_and_replaces_only_the_selected_skill() {
     assert!(!alias_install_root.exists());
     assert!(fixture.source.join("SKILL.md").is_file());
 
-    let failing_tools = fixture.directory.0.join("failing-tools");
-    fs::create_dir_all(&failing_tools).expect("create failing tool directory");
-    let failing_copy = failing_tools.join("cp");
+    let failing_copy = fixture.directory.0.join("failing-cp");
     fs::write(&failing_copy, "#!/bin/sh\nexit 73\n").expect("write failing cp");
     fs::set_permissions(&failing_copy, fs::Permissions::from_mode(0o755))
         .expect("make failing cp executable");
@@ -446,15 +444,10 @@ fn installer_stages_and_replaces_only_the_selected_skill() {
         "preserved\n",
     )
     .expect("write preservation sentinel");
-    let path = format!(
-        "{}:{}",
-        failing_tools.display(),
-        std::env::var("PATH").expect("PATH is set")
-    );
     let failed_install_root = fixture.directory.0.join("failed-binary-root");
     let failed = Command::new("/bin/sh")
         .arg(fixture.repository.join("install.sh"))
-        .env("PATH", path)
+        .env("V4HOOK_CP", &failing_copy)
         .env("V4HOOK_CARGO", &fixture.fake_cargo)
         .env("V4HOOK_INSTALL_ROOT", &failed_install_root)
         .env("V4HOOK_SKILLS_ROOT", &fixture.skills_root)
