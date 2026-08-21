@@ -201,6 +201,13 @@ fn init_keeps_captured_stdout_machine_readable() {
     assert!(agent_instructions.contains("ETHSkills root is not a Solidity startup dependency"));
     assert!(agent_instructions.contains("explicitly selects each child's model and reasoning"));
     assert!(agent_instructions.contains("keeps one non-writing chief"));
+    assert!(agent_instructions.contains("matching installed official Chainlink skill"));
+    assert!(agent_instructions.contains("only the embedded reference"));
+    assert!(agent_instructions.contains("one named live or version-sensitive fact"));
+    assert!(agent_instructions.contains(
+        "If installed help and\n   observed behavior leave one named version-sensitive ambiguity"
+    ));
+    assert!(!agent_instructions.contains("npx skills add smartcontractkit/chainlink-agent-skills"));
     assert!(!agent_instructions.contains("https://ethskills.com/SKILL.md"));
     let metadata = fs::read_to_string(destination.0.join(".v4hook.toml"))
         .expect("scaffold includes template metadata");
@@ -208,7 +215,7 @@ fn init_keeps_captured_stdout_machine_readable() {
         "created-with-cli = \"{}\"",
         env!("CARGO_PKG_VERSION")
     )));
-    assert!(metadata.contains("version = \"2.2.7\""));
+    assert!(metadata.contains("version = \"2.2.8\""));
     assert!(destination.0.join(".env.example").is_file());
     assert!(destination.0.join(".gas-snapshot").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());
@@ -281,6 +288,20 @@ fn orchestrated_delivery_requires_profiled_non_overlapping_delegation() {
         workflow
             .contains("Never dispatch a replacement writer while the prior writer remains active")
     );
+    assert!(workflow.contains(
+        "The chief's research lane ends after the generated project map, the selected installed domain\nreference, and narrow symbol lookup in the pinned project tree"
+    ));
+    assert!(workflow.contains(
+        "Only a specifically named\nlive fact absent from both permits one targeted official URL lookup"
+    ));
+    assert!(workflow.contains(
+        "the chief does not issue product or API\nweb searches in this delegated workflow"
+    ));
+    assert!(workflow.contains(
+        "The child contract supplies the exact local reference path and\nthe one missing question"
+    ));
+    assert!(workflow.contains("the next autonomous action is implementor dispatch"));
+    assert!(!workflow.contains("workflow-convergence"));
 
     let recovery_steps = [
         "Inspect the active child status",
@@ -306,6 +327,30 @@ fn orchestrated_delivery_requires_profiled_non_overlapping_delegation() {
         }
         previous_position = Some(position);
     }
+}
+
+#[test]
+fn managed_domain_research_is_local_first_and_bounded() {
+    let skill = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/v4hook-cli/SKILL.md"),
+    )
+    .expect("v4hook skill exists");
+
+    assert!(skill.contains(
+        "that reference and the project's\npinned contracts are the API source of truth"
+    ));
+    assert!(skill.contains(
+        "This managed-project source order governs when a domain skill also offers broader documentation\naccess"
+    ));
+    assert!(skill.contains("Record the missing fact before one targeted official lookup"));
+    assert!(skill.contains(
+        "A fresh build needs one compact parent specification, the\nactive configuration, the verification contract, and the ignored ledger"
+    ));
+    assert!(skill.contains(
+        "Record the exact pre-edit gate commands, filters, effective settings, and executed counts in the\n   ignored ledger"
+    ));
+    assert!(!skill.contains("Commit the specification, ledger"));
+    assert!(!skill.contains("`workflow-convergence`"));
 }
 
 #[test]

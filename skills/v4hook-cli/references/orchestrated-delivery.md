@@ -1,7 +1,7 @@
 # Chief-led delivery
 
 Use this workflow for a complete hook implementation or material adaptation when multi-agent
-delegation is available. The chief owns the parent task contract, workflow-convergence ledger,
+delegation is available. The chief owns the parent task contract, local convergence ledger,
 architecture, integration order, accepted evidence, and terminal status. Children receive bounded
 task contracts and never inherit parent completion authority.
 
@@ -37,11 +37,16 @@ correctly.
 
 ## Keep one chief
 
-After project-local inspection, the chief reads `task-contracts` and `workflow-convergence`, writes
-the smallest sufficient parent contract, and creates the ignored ledger from
-[local-workflow.md](local-workflow.md). The chief crafts every child contract, inspects each returned
-claim, integrates accepted work, and alone classifies the parent as Complete, Escalated, or
-Blocked.
+After project-local inspection, the chief reads `task-contracts`, writes the smallest sufficient
+parent contract, and creates the ignored ledger from [local-workflow.md](local-workflow.md). The
+chief crafts every child contract, inspects each returned claim, integrates accepted work, and alone
+classifies the parent as Complete, Escalated, or Blocked.
+
+Preparation records requirements and verification ownership; it does not pre-solve the
+implementation. Keep one compact specification for a fresh build, keep command inventory and
+frontier state in the ignored ledger, and create a separate protected-invariant document only when
+adapting existing behavior. Implementation mechanics that do not change the parent contract belong
+to the implementor.
 
 The chief may initialize the scaffold and author the parent contract, specification, frozen
 verification inputs, ledger, and chief adjudication. In delegated delivery, production contracts,
@@ -64,8 +69,8 @@ integration authority allows, the chief may inspect and accept already-materiali
 then stage and commit it without changing the candidate contents.
 
 Route each child to only the domain skill and reference needed for its owned boundary. The chief
-already encodes orchestration in the child contract, so children do not reload `task-contracts` or
-`workflow-convergence` unless one is explicitly appointed as a coordinator.
+already encodes orchestration in the child contract, so children do not reload orchestration skills
+unless one is explicitly appointed as a coordinator.
 
 Children do not spawn descendants unless their child contract grants that authority for one named,
 independent frontier action. Otherwise they return the newly discovered need to the chief.
@@ -117,9 +122,21 @@ the implementor or fixer.
 
 ## Scout unresolved boundaries
 
-Dispatch one or two scouts in parallel only for questions that project inspection did not answer.
-Split by independent boundary, such as pinned PoolManager settlement and an external oracle
-lifecycle. A scout owns no tracked files and returns:
+The chief's research lane ends after the generated project map, the selected installed domain
+reference, and narrow symbol lookup in the pinned project tree. At that point, classify every
+architecture-critical question as locally answered or unresolved. An unresolved external or
+version-sensitive fact becomes a scout contract; it does not become an open-ended chief research
+task. External documentation lookup belongs to that scout: the chief does not issue product or API
+web searches in this delegated workflow.
+
+Dispatch one or two scouts in parallel only for unresolved questions. Split by independent
+boundary, such as pinned PoolManager settlement and an external oracle lifecycle. A scout starts
+with the selected installed domain reference and pinned project sources. Only a specifically named
+live fact absent from both permits one targeted official URL lookup. The scout returns after that
+lookup even if uncertainty remains; broad searches, documentation indexes, and fallback-query
+cascades are outside the scout gate. The child contract supplies the exact local reference path and
+the one missing question so the scout does not rediscover the domain. A scout owns no tracked files
+and returns:
 
 ```text
 Question and parent requirement:
@@ -131,7 +148,12 @@ Remaining uncertainty:
 
 The chief accepts or rejects each recommendation and records the result before it becomes an
 implementation assumption. Do not dispatch a scout for facts available in the generated project
-map, owned source, configuration, installed `--help`, or one pinned symbol lookup.
+map, owned source, configuration, selected embedded reference, installed `--help`, or a narrow
+pinned symbol lookup.
+
+Preparation ends at a clean frozen baseline. Once it is frozen and no scout result is outstanding,
+the next autonomous action is implementor dispatch. The chief performs no additional research
+between freeze and dispatch unless the freeze itself exposes a new, recorded blocker.
 
 ## Implement vertical slices
 
