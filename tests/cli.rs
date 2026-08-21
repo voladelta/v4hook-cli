@@ -208,7 +208,7 @@ fn init_keeps_captured_stdout_machine_readable() {
         "created-with-cli = \"{}\"",
         env!("CARGO_PKG_VERSION")
     )));
-    assert!(metadata.contains("version = \"2.2.6\""));
+    assert!(metadata.contains("version = \"2.2.7\""));
     assert!(destination.0.join(".env.example").is_file());
     assert!(destination.0.join(".gas-snapshot").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());
@@ -306,6 +306,29 @@ fn orchestrated_delivery_requires_profiled_non_overlapping_delegation() {
         }
         previous_position = Some(position);
     }
+}
+
+#[test]
+fn installer_replaces_the_global_skill_without_python_dependencies() {
+    let installer = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("install.sh"))
+        .expect("installer exists");
+
+    let remove = "rm -rf -- \"$skill_destination\"";
+    let copy = "cp -R -- \"$skill_source\" \"$skill_destination\"";
+    let verify = "[ ! -f \"$skill_destination/SKILL.md\" ]";
+    let remove_position = installer.find(remove).expect("installer removes old skill");
+    let copy_position = installer
+        .find(copy)
+        .expect("installer copies repository skill");
+    let verify_position = installer
+        .find(verify)
+        .expect("installer verifies copied skill");
+
+    assert!(installer.contains("/.agents/skills"));
+    assert!(remove_position < copy_position);
+    assert!(copy_position < verify_position);
+    assert!(!installer.contains("PyYAML"));
+    assert!(!installer.contains("quick_validate"));
 }
 
 #[test]

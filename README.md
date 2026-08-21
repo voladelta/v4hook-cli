@@ -23,7 +23,9 @@ Install the locked, release-optimised binary in `~/.local/bin`:
 ./install.sh
 ```
 
-Set `V4HOOK_INSTALL_ROOT` to use another installation root. Its `bin` directory must be in your `PATH`.
+The installer replaces `~/.agents/skills/v4hook-cli` with the repository's current skill and installs
+the release binary. Set `V4HOOK_INSTALL_ROOT` to use another binary installation root. Its `bin`
+directory must be in your `PATH`.
 
 Remove the default installation with:
 

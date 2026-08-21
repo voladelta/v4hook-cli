@@ -1,7 +1,7 @@
 {
   "schemaVersion": "v4hook.template-lock.v2",
-  "templateVersion": "2.2.6",
-  "snapshot": "v4hook-template-2.2.6",
+  "templateVersion": "2.2.7",
+  "snapshot": "v4hook-template-2.2.7",
   "repository": "Uniswap/v4-template",
   "commit": "1fbf95547791f0821a170b88c750cb2e04e6818b",
   "dependencies": {
