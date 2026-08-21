@@ -30,7 +30,8 @@ directory must be in your `PATH`.
 Remove the default installation with:
 
 ```sh
-rm ~/.local/bin/v4hook
+rm -f ~/.local/bin/v4hook
+rm -rf ~/.agents/skills/v4hook-cli
 ```
 
 The release profile favours runtime speed. It uses optimisation level 3, fat link-time optimisation and one code generation unit.
