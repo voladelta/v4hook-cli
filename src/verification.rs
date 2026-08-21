@@ -89,6 +89,62 @@ pub struct VerificationReview {
     pub report_digest: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ReviewDecision {
+    ReviewerClean,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ChiefAdjudication {
+    pub decision: ReviewDecision,
+    pub rationale: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ReviewFindingDisposition {
+    Resolved,
+    Rejected,
+    Accepted,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ReviewFindingClassification {
+    MustFix,
+    ExternalGap,
+    Informational,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VerificationReviewFinding {
+    pub id: String,
+    pub summary: String,
+    pub classification: ReviewFindingClassification,
+    pub violated_requirement: String,
+    pub anchors: Vec<String>,
+    pub impact: String,
+    pub evidence: String,
+    pub disposition: ReviewFindingDisposition,
+    pub rationale: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VerificationReviewReport {
+    pub schema_version: String,
+    pub candidate_source: SourceIdentity,
+    pub frozen_baseline: SourceIdentity,
+    pub verification_contract_digest: String,
+    pub checks_digest: String,
+    pub foundry_config_digest: String,
+    pub chief_adjudication: ChiefAdjudication,
+    pub findings: Vec<VerificationReviewFinding>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct VerificationCandidate {
@@ -395,8 +451,126 @@ fn require_review_unchanged(
         .as_ref()
         .context("reviewed verification state is missing review evidence")?;
     if sha256_file(resolve_from(project_root, &review.report_path))? != review.report_digest {
-        bail!("adversarial review report changed after it was recorded");
+        bail!("structured review report changed after it was recorded");
     }
+    Ok(())
+}
+
+fn validate_review_report(
+    state: &VerificationState,
+    candidate: &VerificationCandidate,
+    report: &VerificationReviewReport,
+) -> Result<()> {
+    if report.schema_version != "v4hook.verification-review.v1" {
+        bail!(
+            "unsupported verification review schemaVersion: {}",
+            report.schema_version
+        );
+    }
+    if report.candidate_source != candidate.source {
+        bail!("verification review candidateSource does not match the first-green candidate");
+    }
+    if report.frozen_baseline != state.baseline {
+        bail!("verification review frozenBaseline does not match the frozen baseline");
+    }
+    for (label, actual, expected) in [
+        (
+            "verificationContractDigest",
+            &report.verification_contract_digest,
+            &state.contract_digest,
+        ),
+        ("checksDigest", &report.checks_digest, &state.checks_digest),
+        (
+            "foundryConfigDigest",
+            &report.foundry_config_digest,
+            &state.foundry_config_digest,
+        ),
+    ] {
+        if actual != expected {
+            bail!("verification review {label} does not match frozen verification state");
+        }
+    }
+    if report.chief_adjudication.rationale.trim().is_empty() {
+        bail!("verification review chiefAdjudication rationale must be non-empty");
+    }
+    let mut finding_ids = BTreeSet::new();
+    for finding in &report.findings {
+        if finding.id.is_empty() || finding.id != finding.id.trim() {
+            bail!(
+                "verification review finding id must be non-empty and have no surrounding whitespace"
+            );
+        }
+        if finding.summary.trim().is_empty()
+            || finding.violated_requirement.trim().is_empty()
+            || finding.anchors.is_empty()
+            || finding
+                .anchors
+                .iter()
+                .any(|anchor| anchor.trim().is_empty())
+            || finding.impact.trim().is_empty()
+            || finding.evidence.trim().is_empty()
+            || finding.rationale.trim().is_empty()
+        {
+            bail!(
+                "verification review findings require a non-empty summary, violatedRequirement, anchors, impact, evidence, and rationale"
+            );
+        }
+        let normalized_id = finding.id.to_lowercase();
+        if !finding_ids.insert(normalized_id) {
+            bail!("duplicate verification review finding id: {}", finding.id);
+        }
+        let coherent = matches!(
+            (&finding.classification, &finding.disposition),
+            (
+                ReviewFindingClassification::MustFix,
+                ReviewFindingDisposition::Resolved | ReviewFindingDisposition::Rejected
+            ) | (
+                ReviewFindingClassification::ExternalGap
+                    | ReviewFindingClassification::Informational,
+                ReviewFindingDisposition::Accepted | ReviewFindingDisposition::Rejected
+            )
+        );
+        if !coherent {
+            bail!(
+                "verification review finding {} has a contradictory classification and disposition",
+                finding.id
+            );
+        }
+    }
+    Ok(())
+}
+
+fn bind_review(
+    state: &mut VerificationState,
+    source: &SourceIdentity,
+    report: &VerificationReviewReport,
+    report_path: String,
+    report_digest: String,
+) -> Result<()> {
+    if state.stage != VerificationStage::FirstGreen {
+        bail!("structured review requires a first-green candidate");
+    }
+    let candidate = state
+        .candidate
+        .as_ref()
+        .context("first-green verification state is missing its candidate")?;
+    if candidate.source != *source {
+        bail!(
+            "project source changed after first green; run verification check again before review"
+        );
+    }
+    validate_review_report(state, candidate, report)?;
+    let candidate = state
+        .candidate
+        .as_mut()
+        .context("first-green verification state is missing its candidate")?;
+    candidate.review = Some(VerificationReview {
+        created_at: now_iso(),
+        report_path,
+        report_digest,
+    });
+    candidate.second_green = None;
+    state.stage = VerificationStage::Reviewed;
     Ok(())
 }
 
@@ -485,39 +659,29 @@ pub fn review(state_file: &Path, report_file: &Path) -> Result<VerificationState
     let mut state = load_state(&state_file)?;
     let loaded_state_digest = state.digest.clone();
     if state.stage != VerificationStage::FirstGreen {
-        bail!("adversarial review requires a first-green candidate");
+        bail!("structured review requires a first-green candidate");
     }
     let project_root = PathBuf::from(&state.project_root);
     require_repository_root(&project_root)?;
     require_frozen_toolchain(&project_root, &state)?;
     let source = source_identity(&project_root)?;
-    let candidate = state
-        .candidate
-        .as_mut()
-        .context("first-green verification state is missing its candidate")?;
-    if candidate.source != source {
-        bail!(
-            "project source changed after first green; run verification check again before review"
-        );
-    }
     let report_file = resolve_from(&project_root, report_file);
-    let report = fs::read_to_string(&report_file)
-        .with_context(|| format!("read adversarial review report {}", report_file.display()))?;
-    if report.trim().is_empty() {
-        bail!("adversarial review report must be non-empty");
-    }
+    let report_bytes = fs::read(&report_file)
+        .with_context(|| format!("read structured review report {}", report_file.display()))?;
+    let report: VerificationReviewReport = serde_json::from_slice(&report_bytes)
+        .with_context(|| format!("parse structured review report {}", report_file.display()))?;
     let report_path = report_file
         .strip_prefix(&project_root)
         .unwrap_or(&report_file)
         .to_string_lossy()
         .into_owned();
-    candidate.review = Some(VerificationReview {
-        created_at: now_iso(),
+    bind_review(
+        &mut state,
+        &source,
+        &report,
         report_path,
-        report_digest: sha256_bytes(report),
-    });
-    candidate.second_green = None;
-    state.stage = VerificationStage::Reviewed;
+        sha256_bytes(&report_bytes),
+    )?;
     if load_state(&state_file)?.digest != loaded_state_digest {
         bail!("verification state changed while the review was being recorded");
     }
@@ -529,6 +693,10 @@ pub fn review(state_file: &Path, report_file: &Path) -> Result<VerificationState
 mod tests {
     use super::*;
     use crate::model::FoundryTestSummary;
+    use std::{
+        process::Command,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     fn contract() -> VerificationContract {
         VerificationContract {
@@ -604,6 +772,35 @@ mod tests {
         }
     }
 
+    fn report(
+        state: &VerificationState,
+        candidate_source: SourceIdentity,
+    ) -> VerificationReviewReport {
+        VerificationReviewReport {
+            schema_version: "v4hook.verification-review.v1".to_owned(),
+            candidate_source,
+            frozen_baseline: state.baseline.clone(),
+            verification_contract_digest: state.contract_digest.clone(),
+            checks_digest: state.checks_digest.clone(),
+            foundry_config_digest: state.foundry_config_digest.clone(),
+            chief_adjudication: ChiefAdjudication {
+                decision: ReviewDecision::ReviewerClean,
+                rationale: "Every listed finding is resolved or rejected with evidence.".to_owned(),
+            },
+            findings: vec![VerificationReviewFinding {
+                id: "review-1".to_owned(),
+                summary: "Candidate initially lacked an exact-output regression.".to_owned(),
+                classification: ReviewFindingClassification::MustFix,
+                violated_requirement: "Exact-output swaps must be covered.".to_owned(),
+                anchors: vec!["test/Hook.t.sol:42".to_owned()],
+                impact: "An exact-output accounting regression could pass verification.".to_owned(),
+                evidence: "The repaired candidate executes testExactOutputAccounting().".to_owned(),
+                disposition: ReviewFindingDisposition::Resolved,
+                rationale: "The candidate now includes the focused regression.".to_owned(),
+            }],
+        }
+    }
+
     fn state(stage: VerificationStage, candidate: VerificationCandidate) -> VerificationState {
         VerificationState {
             schema_version: "v4hook.verification-state.v1".to_owned(),
@@ -649,6 +846,141 @@ mod tests {
     }
 
     #[test]
+    fn structured_review_rejects_candidate_and_frozen_digest_mismatches() {
+        let candidate = VerificationCandidate {
+            source: source("candidate"),
+            first_green: run(),
+            review: None,
+            second_green: None,
+        };
+        let value = state(VerificationStage::FirstGreen, candidate.clone());
+
+        let mut wrong_candidate = report(&value, source("other"));
+        assert!(validate_review_report(&value, &candidate, &wrong_candidate).is_err());
+        wrong_candidate.candidate_source = candidate.source.clone();
+
+        let mut wrong_baseline = wrong_candidate.clone();
+        wrong_baseline.frozen_baseline = source("other-baseline");
+        assert!(validate_review_report(&value, &candidate, &wrong_baseline).is_err());
+
+        for field in ["contract", "checks", "foundry"] {
+            let mut mismatched = wrong_candidate.clone();
+            match field {
+                "contract" => mismatched.verification_contract_digest = "sha256:other".to_owned(),
+                "checks" => mismatched.checks_digest = "sha256:other".to_owned(),
+                "foundry" => mismatched.foundry_config_digest = "sha256:other".to_owned(),
+                _ => unreachable!(),
+            }
+            assert!(validate_review_report(&value, &candidate, &mismatched).is_err());
+        }
+    }
+
+    #[test]
+    fn structured_review_requires_finding_disposition_and_rationale() {
+        let candidate = VerificationCandidate {
+            source: source("candidate"),
+            first_green: run(),
+            review: None,
+            second_green: None,
+        };
+        let value = state(VerificationStage::FirstGreen, candidate.clone());
+        let mut missing_rationale = report(&value, candidate.source.clone());
+        missing_rationale.findings[0].rationale = "  ".to_owned();
+        assert!(validate_review_report(&value, &candidate, &missing_rationale).is_err());
+
+        let raw = serde_json::to_string(&report(&value, candidate.source)).unwrap();
+        let raw = raw.replace("\"disposition\":\"resolved\"", "\"disposition\":\"\"");
+        assert!(serde_json::from_str::<VerificationReviewReport>(&raw).is_err());
+
+        let raw = serde_json::to_string(&report(&value, source("candidate"))).unwrap();
+        let raw = raw.replace(
+            "\"decision\":\"reviewerClean\"",
+            "\"decision\":\"needsFix\"",
+        );
+        assert!(serde_json::from_str::<VerificationReviewReport>(&raw).is_err());
+    }
+
+    #[test]
+    fn chief_report_authored_after_first_green_binds_then_same_source_completes() {
+        let candidate_source = source("candidate");
+        let placeholder = VerificationCandidate {
+            source: source("placeholder"),
+            first_green: run(),
+            review: None,
+            second_green: None,
+        };
+        let mut value = state(VerificationStage::Frozen, placeholder);
+        value.candidate = None;
+
+        record_green(&mut value, candidate_source.clone(), run());
+        assert_eq!(value.stage, VerificationStage::FirstGreen);
+        let adjudication = report(&value, candidate_source.clone());
+        bind_review(
+            &mut value,
+            &candidate_source,
+            &adjudication,
+            ".v4hook/adversarial-review.json".to_owned(),
+            "sha256:report".to_owned(),
+        )
+        .unwrap();
+        assert_eq!(value.stage, VerificationStage::Reviewed);
+        record_green(&mut value, candidate_source, run());
+        assert_eq!(value.stage, VerificationStage::Complete);
+    }
+
+    #[test]
+    fn structured_review_rejects_incomplete_and_contradictory_findings() {
+        let candidate = VerificationCandidate {
+            source: source("candidate"),
+            first_green: run(),
+            review: None,
+            second_green: None,
+        };
+        let value = state(VerificationStage::FirstGreen, candidate.clone());
+
+        for missing in ["requirement", "anchors", "impact", "evidence"] {
+            let mut incomplete = report(&value, candidate.source.clone());
+            match missing {
+                "requirement" => incomplete.findings[0].violated_requirement.clear(),
+                "anchors" => incomplete.findings[0].anchors.clear(),
+                "impact" => incomplete.findings[0].impact.clear(),
+                "evidence" => incomplete.findings[0].evidence.clear(),
+                _ => unreachable!(),
+            }
+            assert!(validate_review_report(&value, &candidate, &incomplete).is_err());
+        }
+
+        let mut contradictory = report(&value, candidate.source.clone());
+        contradictory.findings[0].disposition = ReviewFindingDisposition::Accepted;
+        assert!(validate_review_report(&value, &candidate, &contradictory).is_err());
+
+        let mut accepted_gap = report(&value, candidate.source.clone());
+        accepted_gap.findings[0].classification = ReviewFindingClassification::ExternalGap;
+        accepted_gap.findings[0].disposition = ReviewFindingDisposition::Accepted;
+        assert!(validate_review_report(&value, &candidate, &accepted_gap).is_ok());
+
+        let mut accepted_information = report(&value, candidate.source.clone());
+        accepted_information.findings[0].classification =
+            ReviewFindingClassification::Informational;
+        accepted_information.findings[0].disposition = ReviewFindingDisposition::Accepted;
+        assert!(validate_review_report(&value, &candidate, &accepted_information).is_ok());
+
+        let mut falsely_resolved_gap = accepted_gap;
+        falsely_resolved_gap.findings[0].disposition = ReviewFindingDisposition::Resolved;
+        assert!(validate_review_report(&value, &candidate, &falsely_resolved_gap).is_err());
+
+        let mut duplicate = report(&value, candidate.source.clone());
+        let mut second = duplicate.findings[0].clone();
+        second.id = "REVIEW-1".to_owned();
+        duplicate.findings.push(second);
+        assert!(validate_review_report(&value, &candidate, &duplicate).is_err());
+
+        let mut spaced = report(&value, candidate.source.clone());
+        spaced.findings[0].id = " review-1".to_owned();
+        assert!(validate_review_report(&value, &candidate, &spaced).is_err());
+    }
+
+    #[test]
     fn changed_source_resets_review_to_first_green() {
         let candidate = VerificationCandidate {
             source: source("candidate"),
@@ -686,6 +1018,193 @@ mod tests {
         assert!(
             require_review_unchanged(&value, Path::new("/does-not-exist"), &candidate_source)
                 .is_err()
+        );
+    }
+
+    struct TestRepository(PathBuf);
+
+    impl TestRepository {
+        fn new(name: &str) -> Self {
+            let nonce = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock before Unix epoch")
+                .as_nanos();
+            let root = std::env::temp_dir().join(format!(
+                "v4hook-verification-{name}-{}-{nonce}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&root).expect("create temporary repository");
+            for args in [
+                vec!["init", "--quiet"],
+                vec!["config", "user.email", "v4hook@example.invalid"],
+                vec!["config", "user.name", "v4hook test"],
+            ] {
+                assert!(
+                    Command::new("git")
+                        .current_dir(&root)
+                        .args(args)
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+            }
+            fs::write(root.join(".gitignore"), ".v4hook/\n").expect("write gitignore");
+            fs::write(root.join("README.md"), "verification fixture\n").expect("write fixture");
+            for args in [vec!["add", "."], vec!["commit", "--quiet", "-m", "fixture"]] {
+                assert!(
+                    Command::new("git")
+                        .current_dir(&root)
+                        .args(args)
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+            }
+            Self(root)
+        }
+    }
+
+    impl Drop for TestRepository {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn persisted_review_fixture(
+        name: &str,
+    ) -> (TestRepository, PathBuf, PathBuf, VerificationReviewReport) {
+        let repository = TestRepository::new(name);
+        let candidate_source = source_identity(&repository.0).expect("read candidate source");
+        let (cli_path, cli_digest) = current_cli().expect("read test executable identity");
+        let candidate = VerificationCandidate {
+            source: candidate_source.clone(),
+            first_green: run(),
+            review: None,
+            second_green: None,
+        };
+        let mut state = VerificationState {
+            schema_version: "v4hook.verification-state.v1".to_owned(),
+            created_at: now_iso(),
+            updated_at: now_iso(),
+            project_root: fs::canonicalize(&repository.0)
+                .unwrap()
+                .to_string_lossy()
+                .into_owned(),
+            cli_path,
+            cli_digest,
+            toolchain: current_toolchain(&repository.0).expect("read toolchain identity"),
+            config_path: "v4hook.config.json".to_owned(),
+            contract_path: "verification-contract.json".to_owned(),
+            contract_digest: "sha256:contract".to_owned(),
+            checks_digest: "sha256:checks".to_owned(),
+            foundry_config_digest: "sha256:foundry".to_owned(),
+            baseline: candidate_source.clone(),
+            stage: VerificationStage::FirstGreen,
+            candidate: Some(candidate),
+            digest: String::new(),
+        };
+        let state_path = repository.0.join(DEFAULT_STATE_PATH);
+        write_state(&state_path, &mut state).expect("persist first-green state");
+        let report_path = repository.0.join(".v4hook/adversarial-review.json");
+        let report = report(&state, candidate_source);
+        write_json(&report_path, &report).expect("persist chief report");
+        (repository, state_path, report_path, report)
+    }
+
+    #[test]
+    fn public_review_binds_valid_report_and_persists_review_evidence() {
+        let (_repository, state_path, report_path, _) = persisted_review_fixture("valid");
+        let reviewed = review(&state_path, Path::new(".v4hook/adversarial-review.json"))
+            .expect("bind valid review");
+        assert_eq!(reviewed.stage, VerificationStage::Reviewed);
+        let persisted = load_state(&state_path).expect("reload reviewed state");
+        assert_eq!(persisted.stage, VerificationStage::Reviewed);
+        let evidence = persisted.candidate.unwrap().review.unwrap();
+        assert_eq!(evidence.report_path, ".v4hook/adversarial-review.json");
+        assert_eq!(evidence.report_digest, sha256_file(&report_path).unwrap());
+    }
+
+    #[test]
+    fn public_review_rejects_malformed_unknown_and_mismatched_reports_without_state_change() {
+        let (_repository, state_path, report_path, valid) = persisted_review_fixture("invalid");
+        let initial_digest = load_state(&state_path).unwrap().digest;
+
+        fs::write(&report_path, b"{not-json").unwrap();
+        assert!(review(&state_path, Path::new(".v4hook/adversarial-review.json")).is_err());
+
+        let mut unknown = serde_json::to_value(&valid).unwrap();
+        unknown
+            .as_object_mut()
+            .unwrap()
+            .insert("unknown".to_owned(), Value::Bool(true));
+        write_json(&report_path, &unknown).unwrap();
+        assert!(review(&state_path, Path::new(".v4hook/adversarial-review.json")).is_err());
+
+        let mut incomplete = serde_json::to_value(&valid).unwrap();
+        incomplete["findings"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("impact");
+        write_json(&report_path, &incomplete).unwrap();
+        assert!(review(&state_path, Path::new(".v4hook/adversarial-review.json")).is_err());
+
+        let mut mismatches = Vec::new();
+        let mut wrong_source = valid.clone();
+        wrong_source.candidate_source = source("wrong-candidate");
+        mismatches.push(wrong_source);
+        let mut wrong_baseline = valid.clone();
+        wrong_baseline.frozen_baseline = source("wrong-baseline");
+        mismatches.push(wrong_baseline);
+        for field in ["contract", "checks", "foundry"] {
+            let mut wrong_digest = valid.clone();
+            match field {
+                "contract" => wrong_digest.verification_contract_digest = "sha256:wrong".to_owned(),
+                "checks" => wrong_digest.checks_digest = "sha256:wrong".to_owned(),
+                "foundry" => wrong_digest.foundry_config_digest = "sha256:wrong".to_owned(),
+                _ => unreachable!(),
+            }
+            mismatches.push(wrong_digest);
+        }
+        for mismatched in mismatches {
+            write_json(&report_path, &mismatched).unwrap();
+            assert!(review(&state_path, Path::new(".v4hook/adversarial-review.json")).is_err());
+        }
+        assert_eq!(load_state(&state_path).unwrap().digest, initial_digest);
+    }
+
+    #[test]
+    fn persisted_review_detects_changed_report_and_public_review_rejects_changed_source() {
+        let (repository, state_path, report_path, _valid) =
+            persisted_review_fixture("changed-report");
+        let reviewed = review(&state_path, Path::new(".v4hook/adversarial-review.json"))
+            .expect("bind valid review");
+        fs::write(&report_path, b"{}\n").unwrap();
+        let source = reviewed.candidate.as_ref().unwrap().source.clone();
+        assert!(require_review_unchanged(&reviewed, &repository.0, &source).is_err());
+
+        let (repository, state_path, report_path, valid) =
+            persisted_review_fixture("changed-source");
+        fs::write(repository.0.join("README.md"), "changed candidate\n").unwrap();
+        for args in [
+            vec!["add", "README.md"],
+            vec!["commit", "--quiet", "-m", "change source"],
+        ] {
+            assert!(
+                Command::new("git")
+                    .current_dir(&repository.0)
+                    .args(args)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
+        write_json(&report_path, &valid).unwrap();
+        let error = review(&state_path, Path::new(".v4hook/adversarial-review.json"))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("source changed after first green"),
+            "{error}"
         );
     }
 }

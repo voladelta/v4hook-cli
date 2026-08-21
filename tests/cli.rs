@@ -1,7 +1,7 @@
 use std::{
     fs,
     net::{TcpListener, TcpStream},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
     time::Duration,
@@ -87,6 +87,18 @@ fn readiness_help_requires_bound_evidence_in_stages() {
     for option in ["--config", "--plan", "--simulation"] {
         assert!(help.contains(option), "missing readiness option {option}");
     }
+}
+
+#[test]
+fn verification_review_help_requires_a_structured_chief_adjudication() {
+    let output = Command::new(env!("CARGO_BIN_EXE_v4hook"))
+        .args(["verification", "review", "--help"])
+        .output()
+        .expect("run verification review help");
+    assert!(output.status.success());
+    let help = String::from_utf8_lossy(&output.stdout);
+    assert!(help.contains("v1 JSON chief-adjudicated review"));
+    assert!(help.contains("--report"));
 }
 
 #[test]
@@ -187,6 +199,15 @@ fn init_keeps_captured_stdout_machine_readable() {
     assert!(agent_instructions.contains("Those early reads are preload only"));
     assert!(agent_instructions.contains("until step 1 establishes this project's pinned APIs"));
     assert!(agent_instructions.contains("ETHSkills root is not a Solidity startup dependency"));
+    assert!(agent_instructions.contains("explicitly selects each child's model and reasoning"));
+    assert!(agent_instructions.contains("keeps one non-writing chief"));
+    assert!(agent_instructions.contains("matching installed official Chainlink skill"));
+    assert!(agent_instructions.contains("only the embedded reference"));
+    assert!(agent_instructions.contains("one named live or version-sensitive fact"));
+    assert!(agent_instructions.contains(
+        "If installed help and\n   observed behavior leave one named version-sensitive ambiguity"
+    ));
+    assert!(!agent_instructions.contains("npx skills add smartcontractkit/chainlink-agent-skills"));
     assert!(!agent_instructions.contains("https://ethskills.com/SKILL.md"));
     let metadata = fs::read_to_string(destination.0.join(".v4hook.toml"))
         .expect("scaffold includes template metadata");
@@ -194,7 +215,7 @@ fn init_keeps_captured_stdout_machine_readable() {
         "created-with-cli = \"{}\"",
         env!("CARGO_PKG_VERSION")
     )));
-    assert!(metadata.contains("version = \"2.2.3\""));
+    assert!(metadata.contains("version = \"2.2.8\""));
     assert!(destination.0.join(".env.example").is_file());
     assert!(destination.0.join(".gas-snapshot").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());
@@ -215,6 +236,144 @@ fn init_keeps_captured_stdout_machine_readable() {
         .expect("scaffold includes BaseScript.sol");
     assert!(base_script.contains("V4HOOK_HOOK_ADDRESS"));
     assert!(base_script.contains("V4HOOK_PREDICTED_ADDRESS"));
+}
+
+#[test]
+fn orchestrated_delivery_requires_profiled_non_overlapping_delegation() {
+    let workflow = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("skills/v4hook-cli/references/orchestrated-delivery.md"),
+    )
+    .expect("orchestrated delivery reference exists");
+
+    assert!(workflow.contains(
+        "Every delegation call explicitly passes `model`, `reasoning_effort`, and `fork_turns`"
+    ));
+    assert!(workflow.contains(
+        "Set\n`fork_turns` to `\"none\"` or a bounded positive turn count compatible with the requested profile"
+    ));
+    assert!(workflow.contains("omitting any of the three arguments makes the\ndispatch invalid"));
+    for profile in [
+        "| Scout | `gpt-5.6-luna` | xhigh |",
+        "| Implementor | `gpt-5.6-sol` | medium |",
+        "| Reviewer | `gpt-5.6-sol` | high |",
+        "| Fixer | `gpt-5.6-sol` | medium |",
+        "| Verifier | `gpt-5.6-sol` | high |",
+    ] {
+        assert!(
+            workflow.contains(profile),
+            "missing delegated profile {profile}"
+        );
+    }
+    assert!(workflow.contains(
+        "do not begin until an\nexplicitly profiled implementor or fixer is recorded as their candidate owner"
+    ));
+    assert!(workflow.contains("The chief never\nauthors candidate changes"));
+    assert!(workflow.contains(
+        "Every\nchild that produces candidate changes has explicit Git working-tree authority and materializes\nthose changes in its assigned worktree"
+    ));
+    assert!(workflow.contains(
+        "A child without working-tree authority is read-only and returns findings,\nevidence, or design only; it never returns a candidate patch for someone else to apply"
+    ));
+    assert!(workflow.contains(
+        "dispatches a fresh explicitly profiled implementor or fixer with working-tree authority to\napply and validate it"
+    ));
+    assert!(workflow.contains("The chief never applies, authors, or alters candidate patches"));
+    assert!(workflow.contains(
+        "the chief may inspect and accept already-materialized child work,\nthen stage and commit it without changing the candidate contents"
+    ));
+    assert!(!workflow.contains("the child returns an uncommitted patch"));
+    assert!(!workflow.contains("the chief alone\nintegrates"));
+    assert!(
+        workflow
+            .contains("Never dispatch a replacement writer while the prior writer remains active")
+    );
+    assert!(workflow.contains(
+        "The chief's research lane ends after the generated project map, the selected installed domain\nreference, and narrow symbol lookup in the pinned project tree"
+    ));
+    assert!(workflow.contains(
+        "Only a specifically named\nlive fact absent from both permits one targeted official URL lookup"
+    ));
+    assert!(workflow.contains(
+        "the chief does not issue product or API\nweb searches in this delegated workflow"
+    ));
+    assert!(workflow.contains(
+        "The child contract supplies the exact local reference path and\nthe one missing question"
+    ));
+    assert!(workflow.contains("the next autonomous action is implementor dispatch"));
+    assert!(!workflow.contains("workflow-convergence"));
+
+    let recovery_steps = [
+        "Inspect the active child status",
+        "Request a checkpoint containing",
+        "record\n   `checkpoint unavailable`",
+        "Preserve the actual partial patch and evidence",
+        "Update the ledger with the inspection",
+        "Interrupt the writer",
+        "Confirm from child status that the interrupted writer is inactive",
+        "Update the ledger with the stop confirmation",
+        "Only after that ledger update, redispatch a fresh child with the exact role profile",
+    ];
+    let mut previous_position = None;
+    for step in recovery_steps {
+        let position = workflow
+            .find(step)
+            .unwrap_or_else(|| panic!("missing writer recovery step: {step}"));
+        if let Some(previous) = previous_position {
+            assert!(
+                position > previous,
+                "writer recovery step is out of order: {step}"
+            );
+        }
+        previous_position = Some(position);
+    }
+}
+
+#[test]
+fn managed_domain_research_is_local_first_and_bounded() {
+    let skill = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/v4hook-cli/SKILL.md"),
+    )
+    .expect("v4hook skill exists");
+
+    assert!(skill.contains(
+        "that reference and the project's\npinned contracts are the API source of truth"
+    ));
+    assert!(skill.contains(
+        "This managed-project source order governs when a domain skill also offers broader documentation\naccess"
+    ));
+    assert!(skill.contains("Record the missing fact before one targeted official lookup"));
+    assert!(skill.contains(
+        "A fresh build needs one compact parent specification, the\nactive configuration, the verification contract, and the ignored ledger"
+    ));
+    assert!(skill.contains(
+        "Record the exact pre-edit gate commands, filters, effective settings, and executed counts in the\n   ignored ledger"
+    ));
+    assert!(!skill.contains("Commit the specification, ledger"));
+    assert!(!skill.contains("`workflow-convergence`"));
+}
+
+#[test]
+fn installer_replaces_the_global_skill_without_python_dependencies() {
+    let installer = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("install.sh"))
+        .expect("installer exists");
+
+    let remove = "rm -rf -- \"$skill_destination\"";
+    let copy = "cp -R -- \"$skill_source\" \"$skill_destination\"";
+    let verify = "[ ! -f \"$skill_destination/SKILL.md\" ]";
+    let remove_position = installer.find(remove).expect("installer removes old skill");
+    let copy_position = installer
+        .find(copy)
+        .expect("installer copies repository skill");
+    let verify_position = installer
+        .find(verify)
+        .expect("installer verifies copied skill");
+
+    assert!(installer.contains("/.agents/skills"));
+    assert!(remove_position < copy_position);
+    assert!(copy_position < verify_position);
+    assert!(!installer.contains("PyYAML"));
+    assert!(!installer.contains("quick_validate"));
 }
 
 #[test]

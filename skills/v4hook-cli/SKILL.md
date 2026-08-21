@@ -17,9 +17,9 @@ executed and passed.
 ## Bootstrap a fresh project
 
 Skill mechanics may require this skill and other skills directly triggered by the user's product
-requirements to be read before any task action. Treat those reads as preload only. Do not chase
-optional references, choose an architecture, inspect external APIs, or begin design work before the
-project-local inspection below.
+requirements to be read before any task action. Treat those reads as preload only. End preload after
+the required skill entrypoints; optional references, architecture, API research, and design begin
+only after the project-local inspection below.
 
 When the authorized destination does not exist, the startup order is:
 
@@ -99,34 +99,55 @@ Complete these gates before the first edit:
 
 1. Read [integration-contract.md](references/integration-contract.md) for every change to Solidity,
    scripts, tests, permissions, configuration, or simulation wiring.
-2. Convert the request into a specification covering lifecycle events, user and router identity,
+2. For a complete hook implementation or material adaptation when multi-agent delegation is
+   available, read [orchestrated-delivery.md](references/orchestrated-delivery.md). The chief uses
+   `task-contracts` to own one parent contract and the local workflow to own one ledger and frontier.
+   It passes the prescribed model and reasoning explicitly on every child dispatch and remains a
+   non-writing coordinator after candidate implementation begins; children receive only bounded role
+   contracts.
+3. Convert the request into a specification covering lifecycle events, user and router identity,
    fund movement, return deltas, mutable state, administration, constructor inputs, supported
    tokens, failure behavior, and representative pool behavior.
-3. When adapting an existing or reference implementation, record a protected-invariant ledger for
+4. When adapting an existing or reference implementation, record a protected-invariant ledger for
    its economic formulas and allocations, liquidity provenance, custody and recovery, trust
    boundaries, role separation, and supported paths. Preserve every item unless the user approves a
    material design change.
-4. Record the exact pre-edit gate commands, filters, effective settings, and executed counts as the
-   frozen verification manifest required by the integration contract.
-5. Replace the scaffold verification-contract example with a tracked contract mapping every
+5. Record the exact pre-edit gate commands, filters, effective settings, and executed counts in the
+   ignored ledger as the frozen verification manifest required by the integration contract.
+6. Replace the scaffold verification-contract example with a tracked contract mapping every
    protected invariant to exact test names in the configured unit, fuzz, or invariant gate. Give an
    invariant without local proof one explicit external evidence gap instead of a plausible test
-   claim. Commit the specification, ledger, active configuration, verification contract, and
-   scaffold baseline before editing production code, then run `v4hook verification freeze`.
-6. Load and apply `v4-security-foundations` for Solidity hook implementation or review. If it is
-   unavailable, say so and do not claim that review occurred. Follow project `AGENTS.md` routing and
-   use current official Foundry and Uniswap guidance for version-sensitive behavior and addresses;
-   confirm CLI and Foundry flags against installed `--help` output.
+   claim. Commit the specification, active configuration, verification contract, and scaffold
+   baseline before editing production code, then run `v4hook verification freeze`.
+7. Load and apply `v4-security-foundations` for Solidity hook implementation or review. If it is
+   unavailable, say so and do not claim that review occurred. Follow project `AGENTS.md` routing,
+   use the pinned tree for Uniswap APIs, and confirm CLI and Foundry flags against installed `--help`
+   output. Consult one exact official page only when those local sources leave a named
+   version-sensitive behavior unresolved.
 
 Preparation is complete when the specification is checkable, every protected invariant is mapped,
 the effective workload is frozen from a clean baseline commit, and each selected base, import, and
 permission exists in the pinned tree.
 
+Keep preparation artifacts minimal. A fresh build needs one compact parent specification, the
+active configuration, the verification contract, and the ignored ledger; record the frozen command
+inventory in that ledger. Create a separate protected-invariant document only for an adaptation
+whose existing behavior must be preserved. Do not duplicate architecture or verification prose
+across additional design and report files.
+
 For TypeScript or JavaScript clients, scenario runners, frontends, indexers, router flows,
 companion-contract interaction, or cross-protocol DeFi composition, read
 [evm-integration.md](references/evm-integration.md) before that integration. It routes
 `viem-integration`, `v4-sdk-integration`, and current network guidance by the integration actually
-being built. Load `chainlink-vrf-skill` only when the design uses Chainlink VRF.
+being built.
+
+When the design uses Chainlink VRF, load `chainlink-vrf-skill` at that integration boundary and read
+only its routed embedded reference. For a local implementation, that reference and the project's
+pinned contracts are the API source of truth. External documentation is reserved for one named live
+or version-sensitive fact absent from both sources, such as a current network address or supported
+lane. This managed-project source order governs when a domain skill also offers broader documentation
+access. Record the missing fact before one targeted official lookup; preserve the gap if that lookup
+does not answer it.
 
 Do not load the ETHSkills root for a Solidity-only hook or an ordinary companion ERC-20. The pinned
 project APIs, [hook-design.md](references/hook-design.md),
@@ -163,10 +184,11 @@ A completed hook implementation or material adaptation uses the ignored v4hook l
 contract, then resume from that ledger and actual repository state until the parent gate is
 Complete, Escalated, or Blocked.
 
-When subagent delegation is available, read
-[delegated-review-loop.md](references/delegated-review-loop.md) before first-green review. Use
-`task-contracts` to bound each fresh reviewer, fixer, and verifier; the coordinator retains parent
-contract ownership and alone decides terminal status.
+When the chief-led workflow applies, follow
+[orchestrated-delivery.md](references/orchestrated-delivery.md): review the focused-green clean
+candidate, repair accepted findings, and obtain fresh reviewer-clean preliminary findings before
+running the expensive complete lifecycle. The chief retains parent ownership, authors the bindable
+adjudication after first green exposes the candidate identity, and alone decides terminal status.
 
 Make the narrowest relevant reproducer red for the expected reason, repair the defect, then make that
 gate green. Run the configured gates proportionate to the change. For a completed hook
@@ -178,18 +200,13 @@ severity, or removed assertion cannot turn red into green. When the original gat
 nondeterministic or incompatible after evidence-changing attempts, preserve its failure and report
 the exact blocker instead of claiming completion.
 
-A green first pass is not completion for a hook implementation or material adaptation. Commit the
-candidate and use `v4hook verification check` so the CLI binds first-green evidence to that clean
-source digest and validates every exact test mapping. Read [final-review.md](references/final-review.md),
-inspect that candidate diff as untrusted input, reapply `v4-security-foundations`, and compare it
-with the original requirements, protected-invariant ledger, and pre-edit verification baseline.
-Write the review report under ignored `.v4hook/` state and bind it with `v4hook verification review`.
-Repair every must-fix finding, commit the repair, and run `v4hook verification check`; a changed
-source becomes a new first-green candidate and therefore requires a new review. Completion requires
-the lifecycle state `complete`, produced only by a second check of the unchanged reviewed source and
-unchanged report. Keep the tracked tree unchanged after completion; if a tracked evidence document
-must change, commit it and repeat first-green, review, and second-green for that new source. Passing
-gates and fork evidence are necessary evidence, not a security audit.
+A focused green candidate is not completion for a hook implementation or material adaptation. Read
+[final-review.md](references/final-review.md), repair every accepted must-fix, and repeat fresh review
+for each changed source until one exact commit is reviewer-clean. Then follow the authoritative
+command sequence and structured-report contract in
+[local-workflow.md](references/local-workflow.md). Only lifecycle state `complete` proves the same
+reviewed source and unchanged report passed twice. Passing gates and fork evidence are necessary
+evidence, not a security audit.
 
 ## Advance the lifecycle
 

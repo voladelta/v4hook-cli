@@ -1,6 +1,6 @@
 [package]
 name = "v4hook-cli"
-version = "0.4.4"
+version = "0.4.8"
 edition = "2024"
 rust-version = "1.97.1"
 description = "Foundry-backed verification and launch gates for Uniswap v4 hooks"

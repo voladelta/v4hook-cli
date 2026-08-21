@@ -23,12 +23,15 @@ Install the locked, release-optimised binary in `~/.local/bin`:
 ./install.sh
 ```
 
-Set `V4HOOK_INSTALL_ROOT` to use another installation root. Its `bin` directory must be in your `PATH`.
+The installer replaces `~/.agents/skills/v4hook-cli` with the repository's current skill and installs
+the release binary. Set `V4HOOK_INSTALL_ROOT` to use another binary installation root. Its `bin`
+directory must be in your `PATH`.
 
 Remove the default installation with:
 
 ```sh
-rm ~/.local/bin/v4hook
+rm -f ~/.local/bin/v4hook
+rm -rf ~/.agents/skills/v4hook-cli
 ```
 
 The release profile favours runtime speed. It uses optimisation level 3, fat link-time optimisation and one code generation unit.
@@ -159,26 +162,12 @@ The command does not commit or push changes. Review the diff and commit the upda
 For a completed hook or material adaptation, write a tracked verification contract that maps every
 protected invariant to exact test names from the configured unit, fuzz, or invariant gate. An
 invariant without local proof must carry one explicit `externalGap` instead. From a clean committed
-pre-edit baseline:
-
-```sh
-v4hook verification freeze \
-  --config v4hook.config.json \
-  --contract verification-contract.json
-
-# Implement, test, and commit the candidate, then record first green.
-v4hook verification check --config v4hook.config.json
-
-# Review the exact first-green commit and write the report outside the tracked source tree.
-v4hook verification review --report .v4hook/adversarial-review.md
-
-# The same source commit and unchanged report must pass again.
-v4hook verification check --config v4hook.config.json
-```
-
-The lifecycle freezes configured checks and effective Foundry settings. It requires a clean Git
-worktree and tracked configuration/contract. A source change after first green or review resets the
-candidate to `firstGreen`; completion is only `green → reviewed → same-source green`.
+pre-edit baseline, follow the exact command sequence and strict report schema in
+[`local-workflow.md`](skills/v4hook-cli/references/local-workflow.md). Preliminary review and repair
+happen before the first expensive complete check. That check exposes the authoritative
+`candidateSource`; the chief then authors the bindable adjudication from the final reviewer evidence
+and verification state. A source change after first green or review resets the candidate to
+`firstGreen`; completion is only `green → reviewed → same-source green`.
 
 Use semantic versions for templates:
 

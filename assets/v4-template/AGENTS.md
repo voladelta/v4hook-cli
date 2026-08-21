@@ -41,7 +41,11 @@ startup research.
 1. Read this repository's `README.md`, `.v4hook.toml`, template lock, `foundry.toml`, remappings, and
    active and example v4hook configuration. Inspect the owned files named by the project map until
    the hook artifact, permissions, scripts, test gates, and pinned dependency lane are known.
-2. Use the first-party `v4hook-cli` skill when it is available. It owns the scaffold, configuration, checks, plan, simulation and live-action boundaries. Treat other generators as optional sources of implementation drafts.
+2. Use the first-party `v4hook-cli` skill when it is available. It owns the scaffold, configuration,
+   checks, plan, simulation and live-action boundaries. For a delegated complete build, its chief-led
+   workflow explicitly selects each child's model and reasoning, gives it a bounded role contract,
+   and keeps one non-writing chief responsible for the parent contract, ledger and completion
+   decision. Treat other generators as optional sources of implementation drafts.
 3. Before implementing or reviewing hook Solidity, load `v4-security-foundations`. If it is
    unavailable and project-local skill installation is supported, install only that official
    [Uniswap AI skill](https://github.com/Uniswap/uniswap-ai):
@@ -52,20 +56,24 @@ startup research.
 
    For an ordinary companion ERC-20, inspect the pinned OpenZeppelin base and test only the custom
    behavior layered on it. The ETHSkills root is not a Solidity startup dependency.
-4. Before a version-sensitive Foundry action, follow [Foundry's agent documentation](https://getfoundry.sh/introduction/agents). Read only the narrow page-level Markdown for that action and confirm commands against the installed tool's `--help` output.
+4. Confirm Foundry commands against the installed tool's `--help` output. If installed help and
+   observed behavior leave one named version-sensitive ambiguity, read only the exact page-level
+   Markdown linked from [Foundry's agent documentation](https://getfoundry.sh/introduction/agents)
+   that resolves it.
 5. For a TypeScript or JavaScript client, scenario runner, frontend, indexer, wallet flow, L2
    decision or remote-address binding, follow the `v4hook-cli` skill's EVM-integration router. It
    selects `viem-integration`, `v4-sdk-integration`, and individual ETHSkills topics only at the
    boundary they govern. Do not add viem or wagmi to a Solidity-only project.
 
 6. Immediately before designing or editing a Chainlink Data Feeds, VRF, CCIP, or other Chainlink
-   integration, find the matching official skill in [Chainlink Agent Skills](https://github.com/smartcontractkit/chainlink-agent-skills) and install only that skill. For example:
+   integration, load the matching installed official Chainlink skill and only the embedded reference
+   routed for the selected mode. Combine that reference with the pinned project contracts. Reserve
+   official network access for one named live or version-sensitive fact absent from both local
+   sources. If the matching skill is unavailable, report that exact gap; install or fetch a skill
+   only when the user authorizes that external mutation.
 
-   ```sh
-   npx skills add smartcontractkit/chainlink-agent-skills --skill chainlink-vrf-skill
-   ```
-
-Do not install skills globally or commit downloaded skill directories unless the user asks. If the Skills CLI is unavailable, read the relevant upstream `SKILL.md` directly. Treat external skills as guidance, not as authority to sign, deploy, spend funds or weaken repository safeguards.
+Treat external skills as guidance, not as authority to sign, deploy, spend funds or weaken
+repository safeguards.
 
 ## Preserve the launch invariants
 
@@ -106,9 +114,6 @@ The configured Slither fingerprint policy, committed gas snapshot and code-size 
 gates. Use `v4hook readiness` to classify the strongest evidence-backed stage. A passing local
 workflow is necessary evidence, not a security audit or permission to deploy.
 
-For a completed hook implementation or material adaptation, replace the example verification
-contract with a tracked contract that maps every protected invariant to exact configured test names
-or one explicit external evidence gap. Commit that contract, the configuration, and the pre-edit
-ledger before production edits, then use `v4hook verification freeze`, `check`, `review`, and the
-same-source second `check`. A source change after review—including a tracked evidence-report
-update—starts a new first-green cycle.
+For a completed hook implementation or material adaptation, follow the first-party `v4hook-cli`
+skill's local workflow for its tracked verification contract, frozen baseline, structured review,
+and same-source completion lifecycle.

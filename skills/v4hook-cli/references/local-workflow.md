@@ -28,25 +28,33 @@ authoritative ignored ledger at `.v4hook/convergence-ledger.md`:
 ```text
 Parent gate status:
 Accepted and rejected evidence:
+Open assumptions:
+Workstream dependencies:
+Approval gates and blockers:
 Frontier:
 Latest failure and hypothesis:
 Selected next action and verifier:
-Active child contract and ownership:
+Active child role, requested profile, contract, ownership, and status:
 Latest verified checkpoint:
 ```
 
 Update it after each material observation and accepted checkpoint. Recover from the ledger plus the
 actual Git and verification state, not from a conversational summary. Keep only authorized,
-prerequisite-complete actions on the frontier.
+prerequisite-complete actions on the frontier. A child dispatch, checkpoint request, interruption,
+or completion is a material observation and must update the ledger before another role acts.
 
-Cycle `diagnose → focused proof → integrate → full gate`. A focused pass advances evidence; only the
-configured full check advances the parent gate. A changed source after review returns the lifecycle
-to first green and therefore adds review and the unchanged second check back to the frontier. Repeat
-only when new evidence changes the hypothesis or verifier. Classify the parent outcome directly:
+Cycle `diagnose → focused proof → integrate → review → full gate`. A focused pass advances
+evidence; only the configured full check advances the CLI verification lifecycle. In chief-led
+delivery, finish fresh review and repair loops before spending the full configured workload. A
+source change after review invalidates those findings and adds fresh review, first green, chief
+adjudication, bound review, and the unchanged second check back to the frontier. Repeat only when
+new evidence changes the hypothesis or verifier. Classify the parent outcome directly:
 
 - **Complete:** the requested local behavior and required verification lifecycle are green.
-- **Escalated:** the next material evidence requires new user authority or an external dependency.
-- **Blocked:** no authorized local evidence-producing action remains for the current failure.
+- **Escalated:** a user decision, approval, or grant of new authority can unblock the work. This
+  classification takes precedence over Blocked.
+- **Blocked:** a technical, environmental, access, or external-dependency limit that user input or
+  authority cannot resolve leaves no autonomous next action.
 
 ## Repair missing Slither tooling
 
@@ -102,16 +110,68 @@ reporting a raw `check` result as completion:
 2. Run `v4hook verification freeze --config v4hook.config.json --contract
    verification-contract.json`. The state freezes the tracked baseline, check configuration,
    effective `forge config`, and verification-contract digest.
-3. Implement and commit the candidate. Run `v4hook verification check --config
-   v4hook.config.json`; this is first-green evidence only.
-4. Review that exact commit and write the report under `.v4hook/`. Bind it with `v4hook verification
-   review --report .v4hook/adversarial-review.md`.
-5. Run the same verification check again. Only the `complete` state proves that the reviewed source
-   digest passed twice. Any committed source change replaces the candidate with a new first-green
-   cycle; review and second green must then be repeated.
+3. Implement and commit the candidate. A fresh reviewer keeps tracked source read-only but may write
+   preliminary findings under ignored `.v4hook/`. Repair accepted must-fix findings and repeat a
+   fresh review after every source change until the exact candidate is reviewer-clean.
+4. Run `v4hook verification check --config v4hook.config.json`. This first expensive pass records
+   first-green evidence and prints the authoritative `candidateSource`.
+5. The chief inspects the final reviewer findings and first-green verification state, then authors
+   the strict v1 JSON adjudication below with that exact `candidateSource`. Bind it with `v4hook
+   verification review --report .v4hook/adversarial-review.json`.
+6. Run `v4hook verification check --config v4hook.config.json` again. Only the `complete` state
+   proves that the reviewed source digest passed twice. Any committed source change replaces the
+   candidate with a new first-green cycle; fresh review, bound review, and second green must then be
+   repeated.
 
 The contract validates exact names emitted by the configured unit, fuzz, and invariant gates. A
 general file or suite reference is not a mapping. Keep the state file and review report together;
 the second check verifies the report digest before advancing. Completion binds the entire tracked
 tree, including documentation. Report results in the final response without editing tracked files;
 a required tracked report is a source change and therefore starts a new verification cycle.
+
+The report is strict JSON. Copy `candidateSource` from the exact clean candidate identity and copy
+the frozen baseline and three digests from `.v4hook/verification-state.json`:
+
+```json
+{
+  "schemaVersion": "v4hook.verification-review.v1",
+  "candidateSource": {
+    "commit": "<candidate commit>",
+    "dirty": false,
+    "treeDigest": "sha256:<candidate tree and submodules digest>"
+  },
+  "frozenBaseline": {
+    "commit": "<baseline commit>",
+    "dirty": false,
+    "treeDigest": "sha256:<baseline tree and submodules digest>"
+  },
+  "verificationContractDigest": "sha256:<frozen contract digest>",
+  "checksDigest": "sha256:<frozen checks digest>",
+  "foundryConfigDigest": "sha256:<frozen Foundry config digest>",
+  "chiefAdjudication": {
+    "decision": "reviewerClean",
+    "rationale": "Every must-fix is resolved or rejected, and remaining cases are explicitly accepted within parent authority."
+  },
+  "findings": [
+    {
+      "id": "review-1",
+      "summary": "<finding summary>",
+      "classification": "mustFix",
+      "violatedRequirement": "<parent requirement or invariant>",
+      "anchors": ["src/Hook.sol:42"],
+      "impact": "<consequence if left unaddressed>",
+      "evidence": "<reproducer, direct evidence, or explicit evidence gap>",
+      "disposition": "resolved",
+      "rationale": "<chief disposition rationale>"
+    }
+  ]
+}
+```
+
+`findings` may be empty. Each finding structurally requires its classification, violated
+requirement, one or more exact anchors, impact, evidence/reproducer-or-gap, disposition, and chief
+rationale. IDs must have no surrounding whitespace and remain unique after case normalization.
+`mustFix` permits `resolved` or `rejected`; `externalGap` and `informational` permit `accepted` or
+`rejected`. Rejection means the chief rejected the reviewer's claim and recorded why. The CLI fails
+closed on any other class/disposition pair, a different source or frozen digest, an unknown field,
+or a changed bound report.
