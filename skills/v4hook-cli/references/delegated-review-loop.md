@@ -20,6 +20,11 @@ verifiers never repair what they test.
 
 ## Write bounded child contracts
 
+Unless the parent contract selects another execution profile, dispatch every reviewer, fixer, and
+verifier with model `gpt-5.6-sol`, reasoning effort `high`, and the fast/priority service lane. If
+that exact profile is unavailable, record the mismatch and retain the work locally or escalate; do
+not silently downgrade a security-critical delegated role.
+
 Give a fresh reviewer the original parent contract, protected-invariant ledger, frozen workload,
 baseline and candidate identities, and candidate diff—not the implementor's narrative. Its contract
 must require:
@@ -73,5 +78,5 @@ Child gate: return verified evidence or a precise mismatch. Never repair or clai
    digest, and lifecycle state. Only then may it classify the parent as Complete.
 
 Return a mismatch to the ledger and frontier. Repeat only with a progress delta or changed
-hypothesis. Escalate or report Blocked under `workflow-convergence` when no authorized evidence-
-producing action remains.
+hypothesis. Classify the parent as Escalated or Blocked under the terminal rules in
+[local-workflow.md](local-workflow.md) when no authorized evidence-producing action remains.

@@ -2,14 +2,51 @@
 
 This is a Foundry project for a Uniswap v4 hook managed by the `v4hook` CLI.
 
+## Start from the project map
+
+Inspect the smallest owned surface that can answer the task, then follow its imports into one pinned
+dependency. Treat `out/` and `cache/` as generated evidence, not as design or API sources.
+
+| Need | Start here |
+| --- | --- |
+| Production hook or companion contracts | `src/`; `src/Counter.sol` is a replaceable seed example |
+| Behavioral proof and shared fixtures | `test/`, then `test/utils/` and `test/mocks/` when present |
+| Deployment and pool lifecycle | `script/`, `v4hook.config.json`, its tracked example, and `README.md` |
+| Verification scope | `verification-contract.json`, its tracked example, `foundry.toml`, and `.gas-snapshot` |
+| Hook bases, fee patterns, and settlement helpers | `vendor/uniswap-hooks/src/base/`, `fee/`, and `utils/` |
+| PoolManager callbacks, permissions, deltas, pool keys, and state | `vendor/v4-core/src/interfaces/`, `types/`, `libraries/`, and `PoolManager.sol` |
+| Routers, positions, actions, and CREATE2 mining | `vendor/v4-periphery/src/base/`, `interfaces/`, `libraries/`, and `utils/` |
+| Real local v4 test boundaries | `vendor/v4-core/src/test/`, `vendor/v4-core/test/`, and `test/utils/v4hook-testkit/` |
+
+Use `remappings.txt` to resolve OpenZeppelin, Permit2, Solmate, and Forge Std imports. Search for the
+needed symbol inside its owning path before widening the search; do not inventory all vendored files.
+
+Replacing the seed hook is one integration change. Update the production contracts, tests, deploy
+and pool scripts, artifact and constructor arguments, permissions, pool key, configuration examples,
+verification contract, and README together. Before first green, search the owned surface for stale
+seed references, for example `rg -n "Counter" README.md src test script v4hook.config*.json`, and
+classify every remaining hit.
+
 ## Load current guidance
 
 Before changing Solidity, tests, scripts, hook permissions or deployment configuration:
 
-1. Read this repository's `README.md`, `foundry.toml` and v4hook configuration before deciding how the project works.
+Complete step 1 before activating task-specific guidance or opening optional references. The agent
+runtime may require skills named or directly triggered by the user's request to be read before this
+scaffold exists. Those early reads are preload only: do not apply their examples, chase their linked
+references, or make design choices until step 1 establishes this project's pinned APIs and owned
+surface. Load all later material only at the decision boundary it governs; do not batch it as
+startup research.
+
+1. Read this repository's `README.md`, `.v4hook.toml`, template lock, `foundry.toml`, remappings, and
+   active and example v4hook configuration. Inspect the owned files named by the project map until
+   the hook artifact, permissions, scripts, test gates, and pinned dependency lane are known.
 2. Use the first-party `v4hook-cli` skill when it is available. It owns the scaffold, configuration, checks, plan, simulation and live-action boundaries. Treat other generators as optional sources of implementation drafts.
-3. Read [ETHSkills](https://ethskills.com/SKILL.md), then load only the topics relevant to the task. Hook or companion-contract work normally requires security and testing guidance. Robinhood Chain or other EVM L2 integration should also load the relevant L2 guidance; deployment preparation requires wallet and contract-address guidance; an off-chain application may require indexing or frontend guidance. Do not automatically load broad shipping, orchestration, audit-submission or feedback workflows.
-4. Follow [Foundry's agent documentation](https://getfoundry.sh/introduction/agents). Read the narrow page-level Markdown relevant to the task and confirm version-sensitive commands against the installed tool's `--help` output.
+3. Before implementing or reviewing Solidity, read [ETHSkills](https://ethskills.com/SKILL.md), then
+   load only the security and testing topics the selected design needs. Robinhood Chain or another
+   EVM L2 also requires its relevant L2 guidance; deployment preparation requires wallet and
+   contract-address guidance; an off-chain application may require indexing or frontend guidance.
+4. Before a version-sensitive Foundry action, follow [Foundry's agent documentation](https://getfoundry.sh/introduction/agents). Read only the narrow page-level Markdown for that action and confirm commands against the installed tool's `--help` output.
 5. Use the official [Uniswap AI skills](https://github.com/Uniswap/uniswap-ai) for v4 hook work. If the required skill is unavailable and project-local skill installation is supported, install only what the task needs:
 
    ```sh
@@ -21,7 +58,8 @@ Before changing Solidity, tests, scripts, hook permissions or deployment configu
 
    The security skill applies to every hook implementation or review. Use the generator only as a fallback design reference when the first-party skill is unavailable, and adapt its output to this project's pinned scaffold. Load `viem-integration` only for a TypeScript or JavaScript client, scenario runner, frontend, indexer, wallet connection or off-chain contract interaction. Also load `v4-sdk-integration` when constructing v4 pool identifiers, routes, actions, liquidity operations, Permit2 data or Universal Router calldata. Do not add viem or wagmi to a Solidity-only project.
 
-6. If the task introduces Chainlink Data Feeds, VRF, CCIP or another Chainlink product, find the matching official skill in [Chainlink Agent Skills](https://github.com/smartcontractkit/chainlink-agent-skills) and install only that skill. For example:
+6. Immediately before designing or editing a Chainlink Data Feeds, VRF, CCIP, or other Chainlink
+   integration, find the matching official skill in [Chainlink Agent Skills](https://github.com/smartcontractkit/chainlink-agent-skills) and install only that skill. For example:
 
    ```sh
    npx skills add smartcontractkit/chainlink-agent-skills --skill chainlink-vrf-skill

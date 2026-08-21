@@ -41,9 +41,12 @@ prerequisite-complete actions on the frontier.
 
 Cycle `diagnose → focused proof → integrate → full gate`. A focused pass advances evidence; only the
 configured full check advances the parent gate. A changed source after review returns the lifecycle
-to first green and therefore adds review and the unchanged second check back to the frontier. Use
-`workflow-convergence` as the source of truth for progress deltas, changed hypotheses, recovery, and
-Complete, Escalated, or Blocked termination.
+to first green and therefore adds review and the unchanged second check back to the frontier. Repeat
+only when new evidence changes the hypothesis or verifier. Classify the parent outcome directly:
+
+- **Complete:** the requested local behavior and required verification lifecycle are green.
+- **Escalated:** the next material evidence requires new user authority or an external dependency.
+- **Blocked:** no authorized local evidence-producing action remains for the current failure.
 
 ## Repair missing Slither tooling
 

@@ -14,6 +14,29 @@ evidence to exact inputs, **frozen** preserves the pre-edit verifier's intended 
 reproduces a defect for the expected reason, and **green** means the intended configured workload
 executed and passed.
 
+## Bootstrap a fresh project
+
+Skill mechanics may require this skill and other skills directly triggered by the user's product
+requirements to be read before any task action. Treat those reads as preload only. Do not chase
+optional references, choose an architecture, inspect external APIs, or begin design work before the
+project-local inspection below.
+
+When the authorized destination does not exist, the startup order is:
+
+1. Resolve the retained global CLI, record its path and version, and read only the `init` help needed
+   to create the scaffold.
+2. Confirm that the exact destination is absent, then initialize it. This is the only project action
+   allowed before local inspection.
+3. Read the generated `AGENTS.md` first and follow its project map into `README.md`, metadata, lock,
+   Foundry settings, remappings, active/example configuration, owned seed files, and only the pinned
+   dependency paths needed to identify the actual APIs.
+4. Only after that inspection is complete, activate preloaded security or protocol guidance and
+   open the task-specific references routed by this skill.
+
+Do not turn skill preload into startup research. Reading a mandatory skill early does not authorize
+using its examples before the scaffold's pinned versions, ownership map, and integration surfaces
+are known.
+
 ## Route the request
 
 Classify the authorized outcome before changing state:
@@ -46,22 +69,24 @@ simulation, exact-confirmation, and separate pool-launch boundaries.
 
 ## Inspect the project
 
-1. Detect a managed project from `.v4hook.toml`, `.v4hook-template-lock.json`, or an active v4hook
-   configuration.
-2. Read the nearest `AGENTS.md`, project `README.md`, `foundry.toml`, remappings, active and example
-   configuration, and template lock.
-3. Resolve one CLI binary and retain its exact path for the task. Honor a user-supplied path; in a
+1. Resolve one CLI binary and retain its exact path for the task. Honor a user-supplied path; in a
    v4hook-cli source checkout prefer a freshly built `target/release/v4hook`; otherwise use the
    PATH-installed binary. Record its path and version, and read the relevant `--help` output.
-4. Read [local-workflow.md](references/local-workflow.md) before initializing or scaffolding a
-   project, running `doctor` or `check`, or repairing a local verification tool.
-5. For authorized creation, resolve a new path and initialize there. For an existing project,
-   inspect the pinned `vendor/` tree before choosing a base contract or import.
+2. For authorized creation, follow **Bootstrap a fresh project**, resolve a new path, and initialize
+   there. Initialization is the only project action before reading the generated local instructions.
+3. Detect the managed project from `.v4hook.toml`, `.v4hook-template-lock.json`, or its active
+   v4hook configuration.
+4. Read that project's `AGENTS.md`, `README.md`, `.v4hook.toml`, template lock, `foundry.toml`,
+   remappings, and active and example configuration in their instructed order.
+5. Inspect only the pinned `vendor/` paths needed to choose a base contract or import. After local
+   inspection, read [local-workflow.md](references/local-workflow.md) before running `doctor` or
+   `check`, updating a scaffold, or repairing a local verification tool.
 
 The inspection is complete when project ownership, the exact CLI path/version, template
 compatibility, active configuration, relevant help, and pinned contract APIs are known. Keep the
 worktree unchanged until that criterion is met. Use a compatible newer CLI rather than applying a
-scaffold whose embedded template predates the project's pinned version.
+scaffold whose embedded template predates the project's pinned version. Complete this local
+inspection before loading security, protocol-integration, deployment, or verification-loop guidance.
 
 Read [hook-design.md](references/hook-design.md) when selecting architecture, permissions,
 utilities, access control, shares, or constructor behavior. Read
@@ -127,10 +152,10 @@ exercise the changed production path, and the focused gate is green.
 
 ## Verify the implementation
 
-A completed hook implementation or material adaptation is a convergence workflow. After freezing
-the parent verification contract, load `workflow-convergence` and maintain the ignored v4hook
-ledger defined in [local-workflow.md](references/local-workflow.md). Resume from that ledger and
-actual repository state until the parent gate is Complete, Escalated, or Blocked.
+A completed hook implementation or material adaptation uses the ignored v4hook ledger defined in
+[local-workflow.md](references/local-workflow.md). Create it after freezing the parent verification
+contract, then resume from that ledger and actual repository state until the parent gate is
+Complete, Escalated, or Blocked.
 
 When subagent delegation is available, read
 [delegated-review-loop.md](references/delegated-review-loop.md) before first-green review. Use
