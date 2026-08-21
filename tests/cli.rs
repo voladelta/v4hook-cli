@@ -232,23 +232,65 @@ fn init_keeps_captured_stdout_machine_readable() {
 }
 
 #[test]
-fn orchestrated_delivery_requires_exact_profiles_and_a_non_writing_chief() {
+fn orchestrated_delivery_requires_profiled_non_overlapping_delegation() {
     let workflow = fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("skills/v4hook-cli/references/orchestrated-delivery.md"),
     )
     .expect("orchestrated delivery reference exists");
 
-    assert!(workflow.contains("every dispatch sets both explicitly"));
-    assert!(workflow.contains("relying on inheritance is an invalid dispatch"));
-    assert!(workflow.contains("| Scout | `gpt-5.6-luna` | xhigh |"));
-    assert!(workflow.contains("| Implementor | `gpt-5.6-sol` | medium |"));
-    assert!(workflow.contains("| Reviewer | `gpt-5.6-sol` | high |"));
-    assert!(workflow.contains("The chief remains non-writing"));
+    assert!(workflow.contains(
+        "Every delegation call explicitly passes `model`, `reasoning_effort`, and `fork_turns`"
+    ));
+    assert!(workflow.contains(
+        "Set\n`fork_turns` to `\"none\"` or a bounded positive turn count compatible with the requested profile"
+    ));
+    assert!(workflow.contains("omitting any of the three arguments makes the\ndispatch invalid"));
+    for profile in [
+        "| Scout | `gpt-5.6-luna` | xhigh |",
+        "| Implementor | `gpt-5.6-sol` | medium |",
+        "| Reviewer | `gpt-5.6-sol` | high |",
+        "| Fixer | `gpt-5.6-sol` | medium |",
+        "| Verifier | `gpt-5.6-sol` | high |",
+    ] {
+        assert!(
+            workflow.contains(profile),
+            "missing delegated profile {profile}"
+        );
+    }
+    assert!(workflow.contains(
+        "do not begin until an\nexplicitly profiled implementor or fixer is recorded as their candidate owner"
+    ));
+    assert!(workflow.contains("The chief never\nauthors candidate changes"));
     assert!(
-        workflow.contains("Elapsed waits and an unchanged worktree are observations, not proof")
+        workflow
+            .contains("Never dispatch a replacement writer while the prior writer remains active")
     );
-    assert!(workflow.contains("redispatch a fresh child with the exact role profile"));
+
+    let recovery_steps = [
+        "Inspect the active child status",
+        "Request a checkpoint containing",
+        "record\n   `checkpoint unavailable`",
+        "Preserve the actual partial patch and evidence",
+        "Update the ledger with the inspection",
+        "Interrupt the writer",
+        "Confirm from child status that the interrupted writer is inactive",
+        "Update the ledger with the stop confirmation",
+        "Only after that ledger update, redispatch a fresh child with the exact role profile",
+    ];
+    let mut previous_position = None;
+    for step in recovery_steps {
+        let position = workflow
+            .find(step)
+            .unwrap_or_else(|| panic!("missing writer recovery step: {step}"));
+        if let Some(previous) = previous_position {
+            assert!(
+                position > previous,
+                "writer recovery step is out of order: {step}"
+            );
+        }
+        previous_position = Some(position);
+    }
 }
 
 #[test]

@@ -9,9 +9,10 @@ For ordinary one-agent changes, keep the direct `inspect → implement → verif
 
 ## Dispatch exact role profiles
 
-When the delegation tool accepts model and reasoning arguments, every dispatch sets both explicitly.
-Omitting either argument and relying on inheritance is an invalid dispatch, even when inheritance
-would happen to select the same profile.
+Every delegation call explicitly passes `model`, `reasoning_effort`, and `fork_turns`. Set
+`fork_turns` to `"none"` or a bounded positive turn count compatible with the requested profile.
+Full-history inheritance, `fork_turns: "all"`, or omitting any of the three arguments makes the
+dispatch invalid, even when inheritance would happen to select the same model and reasoning.
 
 | Role | Model | Reasoning | Responsibility |
 | --- | --- | --- | --- |
@@ -28,9 +29,11 @@ downgrade or inherit another profile; preserve the frontier and classify the nee
 alternative as Escalated. Profile availability never weakens the parent gate.
 
 At the delegation callsite, copy `model` and `reasoning_effort` from the table into explicit tool
-arguments. A result that does not echo its resolved profile is acceptable because the recorded call
-arguments are the evidence; it is not a reason to omit them. If either argument was omitted,
-interrupt that child before accepting work, record the invalid dispatch, and redispatch correctly.
+arguments and supply a compatible non-inheriting `fork_turns`. A result that does not echo its
+resolved profile is acceptable because the recorded call arguments are the evidence; it is not a
+reason to omit them. If any required argument was omitted or incompatible, interrupt that child
+before accepting work, record the invalid dispatch, confirm it is inactive, and redispatch
+correctly.
 
 ## Keep one chief
 
@@ -41,11 +44,12 @@ claim, integrates accepted work, and alone classifies the parent as Complete, Es
 Blocked.
 
 The chief may initialize the scaffold and author the parent contract, specification, frozen
-verification inputs, ledger, and chief adjudication. Once an implementor or fixer owns the candidate,
-the chief remains a coordinator: it inspects state, dispatches roles, accepts evidence, integrates
-clean commits, and runs parent controls, but it does not author or repair production contracts,
-tests, scripts, implementation configuration, or candidate documentation. Every candidate change,
-including a trivial repair, belongs to an explicitly profiled implementor or fixer.
+verification inputs, ledger, and chief adjudication. In delegated delivery, production contracts,
+tests, scripts, implementation configuration, and candidate documentation do not begin until an
+explicitly profiled implementor or fixer is recorded as their candidate owner. The chief never
+authors candidate changes. It remains a coordinator that inspects state, dispatches roles, accepts
+evidence, integrates clean commits, and runs parent controls. Every candidate change, including a
+trivial repair, belongs to an explicitly profiled implementor or fixer.
 
 Use one writer at a time in a shared worktree. Parallel writers require isolated worktrees. Every
 writer contract explicitly grants or withholds Git working-tree, index, and commit authority. When
@@ -75,25 +79,34 @@ Handoff point and child gate:
 Omit fields that do not change execution. Each child gate advances one named parent requirement and
 ends before parent completion.
 
-Immediately before dispatch, update the ledger with the child role, explicit model and reasoning,
-contract, owned surface, Git authority, and expected verifier. Immediately after dispatch, record
-the returned child identity and status. Update the same entry on every checkpoint, interruption, or
-completion; do not leave a running writer absent from the authoritative ledger.
+Immediately before dispatch, update the ledger with the child role, explicit model, reasoning,
+`fork_turns`, contract, owned surface, Git authority, and expected verifier. Immediately after
+dispatch, record the returned child identity and status. Update the same entry on every checkpoint,
+interruption, or completion; do not leave a running writer absent from the authoritative ledger.
 
 ## Recover a non-progressing writer
 
-Elapsed waits and an unchanged worktree are observations, not proof that a writer is stuck. Before
-interrupting an implementor or fixer:
+Elapsed waits and an unchanged worktree are observations, not proof that a writer is stuck. Recover
+an implementor or fixer through this ordered state machine:
 
-1. Check the active child status, relevant live processes, and actual shared-worktree state.
-2. Ask for a checkpoint containing its current action, produced artifacts, latest command, and
-   blocker or next verifier.
-3. Preserve any partial patch or evidence and update the ledger with the observed result.
+1. Inspect the active child status, relevant live processes, and actual shared-worktree state.
+2. Request a checkpoint containing its current action, produced artifacts, latest command, and
+   blocker or next verifier. If no checkpoint arrives after the bounded request, record
+   `checkpoint unavailable`; do not invent one.
+3. Preserve the actual partial patch and evidence already present, including the absence of either.
+4. Update the ledger with the inspection, checkpoint or `checkpoint unavailable`, preserved patch
+   and evidence, and the decision to interrupt.
+5. Interrupt the writer.
+6. Confirm from child status that the interrupted writer is inactive. If it is still active, keep
+   waiting or stop at that frontier; do not dispatch another writer.
+7. Update the ledger with the stop confirmation and the preserved handoff state.
+8. Only after that ledger update, redispatch a fresh child with the exact role profile, explicit
+   non-inheriting `fork_turns`, and a narrower or changed-hypothesis contract.
 
-When interruption is still warranted, redispatch a fresh child with the exact role profile and a
-narrower or changed-hypothesis contract. The chief remains non-writing. If two correctly profiled
-writer attempts produce no evidence delta, change decomposition or classify Escalated/Blocked under
-the parent rules; do not convert the chief into the implementor or fixer.
+Never dispatch a replacement writer while the prior writer remains active. The chief remains
+non-writing. If two correctly profiled writer attempts produce no evidence delta, change
+decomposition or classify Escalated/Blocked under the parent rules; do not convert the chief into
+the implementor or fixer.
 
 ## Scout unresolved boundaries
 
