@@ -40,10 +40,9 @@ fn code_size_evidence(config: &LoadedConfig) -> Result<CheckEvidence> {
     )?;
     let summary = CodeSizeSummary {
         unit: "bytes".to_owned(),
-        runtime: u64::try_from(decode_hex(&artifact.runtime_bytecode, "runtime bytecode")?.len())
-            .unwrap_or(u64::MAX),
+        runtime: u64::try_from(decode_hex(&artifact.runtime_bytecode, "runtime bytecode")?.len())?,
         runtime_limit: config.value.checks.code_size.max_runtime_bytes,
-        init_code: u64::try_from(decode_hex(&init_code, "init code")?.len()).unwrap_or(u64::MAX),
+        init_code: u64::try_from(decode_hex(&init_code, "init code")?.len())?,
         init_code_limit: config.value.checks.code_size.max_init_code_bytes,
     };
     if summary.runtime > summary.runtime_limit {

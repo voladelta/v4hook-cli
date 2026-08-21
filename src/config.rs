@@ -351,7 +351,8 @@ fn validate_devnet(devnet: &mut DevnetConfig) -> Result<()> {
         if reserved.iter().any(|index| *index >= devnet.accounts) {
             bail!("devnet reserved account index is outside the generated account set");
         }
-        let available = u64::from(devnet.accounts) - u64::try_from(reserved.len()).unwrap_or(0);
+        let reserved_count = u64::try_from(reserved.len())?;
+        let available = u64::from(devnet.accounts) - reserved_count;
         if verification.expected_senders > available {
             bail!("devnet scenario expectedSenders includes reserved accounts");
         }

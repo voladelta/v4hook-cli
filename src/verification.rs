@@ -258,10 +258,6 @@ fn require_tracked(project_root: &Path, relative: &str, label: &str) -> Result<(
     Ok(())
 }
 
-fn state_path(project_root: &Path, path: &Path) -> PathBuf {
-    resolve_from(project_root, path)
-}
-
 fn write_state(path: &Path, state: &mut VerificationState) -> Result<()> {
     state.updated_at = now_iso();
     state.digest = calculate_digest(state)?;
@@ -421,7 +417,7 @@ pub fn freeze(
     require_tracked(&project_root, &contract_relative, "verification contract")?;
     let contract: VerificationContract = read_json(&contract_path)?;
     validate_contract(&contract)?;
-    let output_path = state_path(&project_root, output_path);
+    let output_path = resolve_from(&project_root, output_path);
     if output_path.exists() {
         bail!(
             "verification state already exists at {}; preserve it or remove it only when intentionally abandoning that lifecycle",
@@ -454,7 +450,7 @@ pub fn freeze(
 
 pub fn check(config: &LoadedConfig, state_file: &Path) -> Result<VerificationState> {
     let project_root = canonical_project_root(config)?;
-    let state_file = state_path(&project_root, state_file);
+    let state_file = resolve_from(&project_root, state_file);
     let mut state = load_state(&state_file)?;
     let loaded_state_digest = state.digest.clone();
     let (project_root, contract) = require_frozen_inputs(config, &state)?;

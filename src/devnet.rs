@@ -59,10 +59,6 @@ struct AccountSnapshot {
     balance: String,
 }
 
-fn absolute_output(path: &Path) -> Result<PathBuf> {
-    absolute_path(path)
-}
-
 fn read_state(path: &Path) -> Result<DevnetState> {
     let state: DevnetState = read_json(path)?;
     if state.schema_version != "v4hook.devnet-state.v1" {
@@ -292,7 +288,7 @@ fn require_generated_manifest(path: &Path) -> Result<()> {
 }
 
 pub fn up(input: &DevnetUpInput<'_>) -> Result<DevnetStatus> {
-    let state_file = absolute_output(input.state_file)?;
+    let state_file = absolute_path(input.state_file)?;
     if state_file.exists() {
         bail!(
             "devnet state already exists at {}; run `v4hook devnet status` or `v4hook devnet down` first",
@@ -302,7 +298,7 @@ pub fn up(input: &DevnetUpInput<'_>) -> Result<DevnetStatus> {
     if input.port == 0 {
         bail!("devnet port must be positive");
     }
-    let manifest_file = absolute_output(input.manifest_file)?;
+    let manifest_file = absolute_path(input.manifest_file)?;
     if manifest_file.exists() {
         require_generated_manifest(&manifest_file)?;
     }
@@ -393,7 +389,7 @@ pub fn status(state_file: &Path) -> Result<DevnetStatus> {
 }
 
 pub fn reset(state_file: &Path) -> Result<DevnetStatus> {
-    let state_file = absolute_output(state_file)?;
+    let state_file = absolute_path(state_file)?;
     let mut state = read_state(&state_file)?;
     require_owned_process(&state)?;
     let context = prepare_deployment_simulation(&state.plan_path)?;
@@ -747,7 +743,8 @@ fn verify_scenario_report(
             managed.len()
         ));
     }
-    if u64::try_from(reported.len()).unwrap_or(u64::MAX) != policy.expected_transactions {
+    let observed_transactions = u64::try_from(reported.len())?;
+    if observed_transactions != policy.expected_transactions {
         issues.push(format!(
             "expected {} transactions, observed {}",
             policy.expected_transactions,
@@ -765,7 +762,7 @@ fn verify_scenario_report(
         issues.extend(checked.issues);
         transactions.push(checked.evidence);
     }
-    let observed_senders = u64::try_from(senders.len()).unwrap_or(u64::MAX);
+    let observed_senders = u64::try_from(senders.len())?;
     if observed_senders != policy.expected_senders {
         issues.push(format!(
             "expected {} unique senders, observed {observed_senders}",
@@ -779,7 +776,7 @@ fn verify_scenario_report(
     let passed = issues.is_empty();
     Ok(DevnetScenarioVerificationEvidence {
         expected_transactions: policy.expected_transactions,
-        observed_transactions: u64::try_from(reported.len()).unwrap_or(u64::MAX),
+        observed_transactions,
         expected_senders: policy.expected_senders,
         observed_senders,
         assertions: vec![
@@ -834,8 +831,8 @@ fn prepare_scenario(input: &DevnetScenarioInput<'_>) -> Result<PreparedScenario>
         })
         .with_context(|| format!("unknown devnet scenario: {}", input.scenario))?;
     let scenario = scenario.clone();
-    let report_path = absolute_output(
-        &input
+    let report_path = absolute_path(
+        input
             .output
             .with_extension(format!("scenario-report-{}.json", std::process::id())),
     )?;
@@ -1050,7 +1047,7 @@ fn purge_generated_artifacts(state_file: &Path, state: &DevnetState) -> Result<V
 }
 
 pub fn down(state_file: &Path, purge_generated: bool) -> Result<DevnetDownResult> {
-    let state_file = absolute_output(state_file)?;
+    let state_file = absolute_path(state_file)?;
     let state = read_state(&state_file)?;
     let Some(command) = process_command(state.pid)? else {
         let removed = if purge_generated {

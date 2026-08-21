@@ -182,8 +182,7 @@ pub fn run_slither(config: &LoadedConfig) -> Result<(CommandResult, SlitherSumma
             result.exit_code
         );
     }
-    let allowed_findings =
-        u64::try_from(findings.iter().filter(|item| item.allowed).count()).unwrap_or(u64::MAX);
+    let allowed_findings = u64::try_from(findings.iter().filter(|item| item.allowed).count())?;
     Ok((
         result,
         SlitherSummary {
