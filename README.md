@@ -159,28 +159,11 @@ The command does not commit or push changes. Review the diff and commit the upda
 For a completed hook or material adaptation, write a tracked verification contract that maps every
 protected invariant to exact test names from the configured unit, fuzz, or invariant gate. An
 invariant without local proof must carry one explicit `externalGap` instead. From a clean committed
-pre-edit baseline:
-
-```sh
-v4hook verification freeze \
-  --config v4hook.config.json \
-  --contract verification-contract.json
-
-# Implement, test, review, repair, and commit one reviewer-clean candidate.
-# Record first green for that exact source.
-v4hook verification check --config v4hook.config.json
-
-# Bind the exact candidate's existing v1 JSON review report outside the tracked source tree.
-v4hook verification review --report .v4hook/adversarial-review.json
-
-# The same source commit and unchanged report must pass again.
-v4hook verification check --config v4hook.config.json
-```
-
-The structured report binds `candidateSource`, `frozenBaseline`, the verification-contract, checks,
-and effective Foundry-config digests, a `reviewerClean` chief adjudication, and every finding's
-disposition and rationale. The lifecycle requires a clean Git worktree and tracked
-configuration/contract. A source change after first green or review resets the candidate to
+pre-edit baseline, follow the exact command sequence and strict report schema in
+[`local-workflow.md`](skills/v4hook-cli/references/local-workflow.md). Preliminary review and repair
+happen before the first expensive complete check. That check exposes the authoritative
+`candidateSource`; the chief then authors the bindable adjudication from the final reviewer evidence
+and verification state. A source change after first green or review resets the candidate to
 `firstGreen`; completion is only `green → reviewed → same-source green`.
 
 Use semantic versions for templates:

@@ -44,16 +44,16 @@ prerequisite-complete actions on the frontier.
 
 Cycle `diagnose → focused proof → integrate → review → full gate`. A focused pass advances
 evidence; only the configured full check advances the CLI verification lifecycle. In chief-led
-delivery, obtain a fresh reviewer-clean candidate before spending the full configured workload. A
-source change after review invalidates that report and adds fresh review, first green, bound review,
-and the unchanged second check back to the frontier. Repeat only when new evidence changes the
-hypothesis or verifier. Classify the parent outcome directly:
+delivery, finish fresh review and repair loops before spending the full configured workload. A
+source change after review invalidates those findings and adds fresh review, first green, chief
+adjudication, bound review, and the unchanged second check back to the frontier. Repeat only when
+new evidence changes the hypothesis or verifier. Classify the parent outcome directly:
 
 - **Complete:** the requested local behavior and required verification lifecycle are green.
-- **Escalated:** an autonomous next action exists only after a user decision or grant of new
-  authority.
-- **Blocked:** a technical, environmental, access, or external-dependency limit leaves no
-  autonomous next action under current authority.
+- **Escalated:** a user decision, approval, or grant of new authority can unblock the work. This
+  classification takes precedence over Blocked.
+- **Blocked:** a technical, environmental, access, or external-dependency limit that user input or
+  authority cannot resolve leaves no autonomous next action.
 
 ## Repair missing Slither tooling
 
@@ -109,15 +109,18 @@ reporting a raw `check` result as completion:
 2. Run `v4hook verification freeze --config v4hook.config.json --contract
    verification-contract.json`. The state freezes the tracked baseline, check configuration,
    effective `forge config`, and verification-contract digest.
-3. Implement and commit the candidate. Review that exact commit and write the v1 JSON report below
-   under `.v4hook/`; repair and re-review changed source until the chief adjudicates the candidate
-   reviewer-clean.
-4. Run `v4hook verification check --config v4hook.config.json`; this is first-green evidence only.
-   Bind the existing exact-candidate report with `v4hook verification review --report
-   .v4hook/adversarial-review.json`.
-5. Run the same verification check again. Only the `complete` state proves that the reviewed source
-   digest passed twice. Any committed source change replaces the candidate with a new first-green
-   cycle; fresh review, bound review, and second green must then be repeated.
+3. Implement and commit the candidate. A fresh reviewer keeps tracked source read-only but may write
+   preliminary findings under ignored `.v4hook/`. Repair accepted must-fix findings and repeat a
+   fresh review after every source change until the exact candidate is reviewer-clean.
+4. Run `v4hook verification check --config v4hook.config.json`. This first expensive pass records
+   first-green evidence and prints the authoritative `candidateSource`.
+5. The chief inspects the final reviewer findings and first-green verification state, then authors
+   the strict v1 JSON adjudication below with that exact `candidateSource`. Bind it with `v4hook
+   verification review --report .v4hook/adversarial-review.json`.
+6. Run `v4hook verification check --config v4hook.config.json` again. Only the `complete` state
+   proves that the reviewed source digest passed twice. Any committed source change replaces the
+   candidate with a new first-green cycle; fresh review, bound review, and second green must then be
+   repeated.
 
 The contract validates exact names emitted by the configured unit, fuzz, and invariant gates. A
 general file or suite reference is not a mapping. Keep the state file and review report together;
@@ -146,20 +149,28 @@ the frozen baseline and three digests from `.v4hook/verification-state.json`:
   "foundryConfigDigest": "sha256:<frozen Foundry config digest>",
   "chiefAdjudication": {
     "decision": "reviewerClean",
-    "rationale": "All findings are resolved or rejected with the evidence recorded below."
+    "rationale": "Every must-fix is resolved or rejected, and remaining cases are explicitly accepted within parent authority."
   },
   "findings": [
     {
       "id": "review-1",
       "summary": "<finding summary>",
+      "classification": "mustFix",
+      "violatedRequirement": "<parent requirement or invariant>",
+      "anchors": ["src/Hook.sol:42"],
+      "impact": "<consequence if left unaddressed>",
+      "evidence": "<reproducer, direct evidence, or explicit evidence gap>",
       "disposition": "resolved",
-      "rationale": "<non-empty chief disposition rationale>"
+      "rationale": "<chief disposition rationale>"
     }
   ]
 }
 ```
 
-`findings` may be empty. Each listed finding needs a unique non-empty `id`, non-empty `summary`, and
-exactly one supported disposition (`resolved` or `rejected`) with a non-empty rationale. The CLI
-rejects a different candidate, baseline, contract digest, checks digest, Foundry-config digest,
-decision, unknown field, or changed report before advancing to `reviewed`.
+`findings` may be empty. Each finding structurally requires its classification, violated
+requirement, one or more exact anchors, impact, evidence/reproducer-or-gap, disposition, and chief
+rationale. IDs must have no surrounding whitespace and remain unique after case normalization.
+`mustFix` permits `resolved` or `rejected`; `externalGap` and `informational` permit `accepted` or
+`rejected`. Rejection means the chief rejected the reviewer's claim and recorded why. The CLI fails
+closed on any other class/disposition pair, a different source or frozen digest, an unknown field,
+or a changed bound report.

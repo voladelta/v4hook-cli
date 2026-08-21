@@ -169,8 +169,9 @@ Complete, Escalated, or Blocked.
 
 When the chief-led workflow applies, follow
 [orchestrated-delivery.md](references/orchestrated-delivery.md): review the focused-green clean
-candidate, repair accepted findings, and obtain a fresh reviewer-clean report before running the
-expensive complete lifecycle. The chief retains parent ownership and alone decides terminal status.
+candidate, repair accepted findings, and obtain fresh reviewer-clean preliminary findings before
+running the expensive complete lifecycle. The chief retains parent ownership, authors the bindable
+adjudication after first green exposes the candidate identity, and alone decides terminal status.
 
 Make the narrowest relevant reproducer red for the expected reason, repair the defect, then make that
 gate green. Run the configured gates proportionate to the change. For a completed hook

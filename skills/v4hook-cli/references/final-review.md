@@ -78,8 +78,9 @@ an unexplained budget increase is a must-fix review finding.
 
 ## Finish the reviewed candidate
 
-Write the structured report under `.v4hook/`. Repair every accepted must-fix item, make its narrow
-reproducer red, repair it to green, and commit it. Every changed source requires a fresh review; do
-not carry a report across candidate digests. Follow [local-workflow.md](local-workflow.md) for the
-report schema and exact CLI sequence. Treat only lifecycle state `complete` as same-source
-second-pass evidence.
+Keep tracked source read-only during review and write preliminary findings under ignored
+`.v4hook/`. Repair every accepted must-fix item, make its narrow reproducer red, repair it to green,
+and commit it. Every changed source requires a fresh review; do not carry findings across candidate
+digests. After first green exposes the exact candidate identity, the chief authors the bindable
+adjudication. Follow [local-workflow.md](local-workflow.md) for its schema and the exact CLI
+sequence. Treat only lifecycle state `complete` as same-source second-pass evidence.
