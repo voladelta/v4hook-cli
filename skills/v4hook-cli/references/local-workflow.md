@@ -28,6 +28,9 @@ authoritative ignored ledger at `.v4hook/convergence-ledger.md`:
 ```text
 Parent gate status:
 Accepted and rejected evidence:
+Open assumptions:
+Workstream dependencies:
+Approval gates and blockers:
 Frontier:
 Latest failure and hypothesis:
 Selected next action and verifier:
@@ -47,8 +50,10 @@ and the unchanged second check back to the frontier. Repeat only when new eviden
 hypothesis or verifier. Classify the parent outcome directly:
 
 - **Complete:** the requested local behavior and required verification lifecycle are green.
-- **Escalated:** the next material evidence requires new user authority or an external dependency.
-- **Blocked:** no authorized local evidence-producing action remains for the current failure.
+- **Escalated:** an autonomous next action exists only after a user decision or grant of new
+  authority.
+- **Blocked:** a technical, environmental, access, or external-dependency limit leaves no
+  autonomous next action under current authority.
 
 ## Repair missing Slither tooling
 
@@ -104,11 +109,12 @@ reporting a raw `check` result as completion:
 2. Run `v4hook verification freeze --config v4hook.config.json --contract
    verification-contract.json`. The state freezes the tracked baseline, check configuration,
    effective `forge config`, and verification-contract digest.
-3. Implement and commit the candidate. Review that exact commit and write the report under
-   `.v4hook/`; repair and re-review changed source until the candidate has no accepted must-fix.
+3. Implement and commit the candidate. Review that exact commit and write the v1 JSON report below
+   under `.v4hook/`; repair and re-review changed source until the chief adjudicates the candidate
+   reviewer-clean.
 4. Run `v4hook verification check --config v4hook.config.json`; this is first-green evidence only.
    Bind the existing exact-candidate report with `v4hook verification review --report
-   .v4hook/adversarial-review.md`.
+   .v4hook/adversarial-review.json`.
 5. Run the same verification check again. Only the `complete` state proves that the reviewed source
    digest passed twice. Any committed source change replaces the candidate with a new first-green
    cycle; fresh review, bound review, and second green must then be repeated.
@@ -118,3 +124,42 @@ general file or suite reference is not a mapping. Keep the state file and review
 the second check verifies the report digest before advancing. Completion binds the entire tracked
 tree, including documentation. Report results in the final response without editing tracked files;
 a required tracked report is a source change and therefore starts a new verification cycle.
+
+The report is strict JSON. Copy `candidateSource` from the exact clean candidate identity and copy
+the frozen baseline and three digests from `.v4hook/verification-state.json`:
+
+```json
+{
+  "schemaVersion": "v4hook.verification-review.v1",
+  "candidateSource": {
+    "commit": "<candidate commit>",
+    "dirty": false,
+    "treeDigest": "sha256:<candidate tree and submodules digest>"
+  },
+  "frozenBaseline": {
+    "commit": "<baseline commit>",
+    "dirty": false,
+    "treeDigest": "sha256:<baseline tree and submodules digest>"
+  },
+  "verificationContractDigest": "sha256:<frozen contract digest>",
+  "checksDigest": "sha256:<frozen checks digest>",
+  "foundryConfigDigest": "sha256:<frozen Foundry config digest>",
+  "chiefAdjudication": {
+    "decision": "reviewerClean",
+    "rationale": "All findings are resolved or rejected with the evidence recorded below."
+  },
+  "findings": [
+    {
+      "id": "review-1",
+      "summary": "<finding summary>",
+      "disposition": "resolved",
+      "rationale": "<non-empty chief disposition rationale>"
+    }
+  ]
+}
+```
+
+`findings` may be empty. Each listed finding needs a unique non-empty `id`, non-empty `summary`, and
+exactly one supported disposition (`resolved` or `rejected`) with a non-empty rationale. The CLI
+rejects a different candidate, baseline, contract digest, checks digest, Foundry-config digest,
+decision, unknown field, or changed report before advancing to `reviewed`.

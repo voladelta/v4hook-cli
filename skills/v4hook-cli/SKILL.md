@@ -183,18 +183,12 @@ nondeterministic or incompatible after evidence-changing attempts, preserve its 
 the exact blocker instead of claiming completion.
 
 A focused green candidate is not completion for a hook implementation or material adaptation. Read
-[final-review.md](references/final-review.md), inspect that clean candidate as untrusted input,
-reapply `v4-security-foundations`, and compare it with the original requirements,
-protected-invariant ledger, and pre-edit verification baseline. Repair every accepted must-fix and
-repeat fresh review for each changed source until one exact commit is reviewer-clean.
-
-Then use `v4hook verification check` to bind first-green evidence to that reviewed source and
-validate every exact test mapping. Bind its existing ignored `.v4hook/` review report with
-`v4hook verification review`, then run the unchanged check again. Completion requires lifecycle
-state `complete`, produced only by the same reviewed source and unchanged report passing twice. Keep
-the tracked tree unchanged after completion; if a tracked evidence document must change, commit it
-and repeat review, first-green, bound review, and second-green for that new source. Passing gates and
-fork evidence are necessary evidence, not a security audit.
+[final-review.md](references/final-review.md), repair every accepted must-fix, and repeat fresh review
+for each changed source until one exact commit is reviewer-clean. Then follow the authoritative
+command sequence and structured-report contract in
+[local-workflow.md](references/local-workflow.md). Only lifecycle state `complete` proves the same
+reviewed source and unchanged report passed twice. Passing gates and fork evidence are necessary
+evidence, not a security audit.
 
 ## Advance the lifecycle
 

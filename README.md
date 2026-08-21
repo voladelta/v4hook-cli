@@ -170,16 +170,18 @@ v4hook verification freeze \
 # Record first green for that exact source.
 v4hook verification check --config v4hook.config.json
 
-# Bind the exact candidate's existing review report outside the tracked source tree.
-v4hook verification review --report .v4hook/adversarial-review.md
+# Bind the exact candidate's existing v1 JSON review report outside the tracked source tree.
+v4hook verification review --report .v4hook/adversarial-review.json
 
 # The same source commit and unchanged report must pass again.
 v4hook verification check --config v4hook.config.json
 ```
 
-The lifecycle freezes configured checks and effective Foundry settings. It requires a clean Git
-worktree and tracked configuration/contract. A source change after first green or review resets the
-candidate to `firstGreen`; completion is only `green → reviewed → same-source green`.
+The structured report binds `candidateSource`, `frozenBaseline`, the verification-contract, checks,
+and effective Foundry-config digests, a `reviewerClean` chief adjudication, and every finding's
+disposition and rationale. The lifecycle requires a clean Git worktree and tracked
+configuration/contract. A source change after first green or review resets the candidate to
+`firstGreen`; completion is only `green → reviewed → same-source green`.
 
 Use semantic versions for templates:
 

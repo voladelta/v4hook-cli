@@ -110,9 +110,6 @@ The configured Slither fingerprint policy, committed gas snapshot and code-size 
 gates. Use `v4hook readiness` to classify the strongest evidence-backed stage. A passing local
 workflow is necessary evidence, not a security audit or permission to deploy.
 
-For a completed hook implementation or material adaptation, replace the example verification
-contract with a tracked contract that maps every protected invariant to exact configured test names
-or one explicit external evidence gap. Commit that contract, the configuration, and the pre-edit
-ledger before production edits, then use `v4hook verification freeze`, `check`, `review`, and the
-same-source second `check`. A source change after review—including a tracked evidence-report
-update—starts a new first-green cycle.
+For a completed hook implementation or material adaptation, follow the first-party `v4hook-cli`
+skill's local workflow for its tracked verification contract, frozen baseline, structured review,
+and same-source completion lifecycle.

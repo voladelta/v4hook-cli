@@ -78,13 +78,8 @@ an unexplained budget increase is a must-fix review finding.
 
 ## Finish the reviewed candidate
 
-Write the classified review report under `.v4hook/`. Repair every accepted must-fix item, make its
-narrow reproducer red, repair it to green, and commit it. Every changed source requires a fresh
-review; do not carry a report across candidate digests.
-
-After one exact candidate has no accepted must-fix, the verifier runs `v4hook verification check`,
-binds that existing report with `v4hook verification review`, and runs the unchanged check again.
-Report before/after gate settings and actual executed/pass/skip counts. Treat only lifecycle state
-`complete` as same-source second-pass evidence. Only residual external assurance, unavailable launch
-inputs, or actions outside the user's granted authority may remain; locally actionable defects are
-not residual risks.
+Write the structured report under `.v4hook/`. Repair every accepted must-fix item, make its narrow
+reproducer red, repair it to green, and commit it. Every changed source requires a fresh review; do
+not carry a report across candidate digests. Follow [local-workflow.md](local-workflow.md) for the
+report schema and exact CLI sequence. Treat only lifecycle state `complete` as same-source
+second-pass evidence.

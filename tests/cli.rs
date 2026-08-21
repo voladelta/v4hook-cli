@@ -90,6 +90,18 @@ fn readiness_help_requires_bound_evidence_in_stages() {
 }
 
 #[test]
+fn verification_review_help_requires_a_structured_chief_adjudication() {
+    let output = Command::new(env!("CARGO_BIN_EXE_v4hook"))
+        .args(["verification", "review", "--help"])
+        .output()
+        .expect("run verification review help");
+    assert!(output.status.success());
+    let help = String::from_utf8_lossy(&output.stdout);
+    assert!(help.contains("v1 JSON chief-adjudicated review"));
+    assert!(help.contains("--report"));
+}
+
+#[test]
 #[ignore = "requires Foundry Anvil and unrestricted localhost sockets"]
 fn daemonized_anvil_survives_launcher_exit() {
     let directory = TemporaryDirectory::new("daemon");
@@ -194,7 +206,7 @@ fn init_keeps_captured_stdout_machine_readable() {
         "created-with-cli = \"{}\"",
         env!("CARGO_PKG_VERSION")
     )));
-    assert!(metadata.contains("version = \"2.2.4\""));
+    assert!(metadata.contains("version = \"2.2.5\""));
     assert!(destination.0.join(".env.example").is_file());
     assert!(destination.0.join(".gas-snapshot").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());

@@ -31,6 +31,11 @@ the smallest sufficient parent contract, and creates the ignored ledger from
 claim, integrates accepted work, and alone classifies the parent as Complete, Escalated, or
 Blocked.
 
+Use one writer at a time in a shared worktree. Parallel writers require isolated worktrees. Every
+writer contract explicitly grants or withholds Git working-tree, index, and commit authority. When
+it grants none of those, the child returns an uncommitted patch or findings and the chief alone
+integrates, stages, and commits them.
+
 Route each child to only the domain skill and reference needed for its owned boundary. The chief
 already encodes orchestration in the child contract, so children do not reload `task-contracts` or
 `workflow-convergence` unless one is explicitly appointed as a coordinator.
@@ -46,6 +51,7 @@ Anchors and supplied context:
 Owned files or read-only surface:
 Dependencies and invariants:
 Authority:
+Git working-tree, index, and commit authority:
 Proof and evidence to return:
 Handoff point and child gate:
 ```
@@ -85,7 +91,8 @@ parent requirement → failing behavioral proof → smallest production change �
 
 Its child contract names the accepted architecture, owned files, external interfaces, frozen
 verification constraints, and integration handoff. It authorizes only that production and test
-surface plus non-destructive local checks.
+surface plus non-destructive local checks, and explicitly states its Git working-tree, index, and
+commit authority.
 
 Start with compiling interfaces and one real production-path slice. Add its rollback or hostile
 case before moving to the next slice. Run formatting, compilation, focused tests, structured static
@@ -103,7 +110,8 @@ Dispatch a fresh reviewer for the exact focused-green candidate before full conf
 invariant workloads. Give it the parent contract, protected-invariant ledger, frozen workload,
 baseline and candidate identities, and candidate diff—not the implementor's narrative.
 
-The reviewer leaves tracked source unchanged and writes a classified report under `.v4hook/`:
+The reviewer leaves tracked source unchanged and writes the classified v1 JSON report defined in
+[local-workflow.md](local-workflow.md) under `.v4hook/`:
 
 ```text
 Destination: a classified adversarial report for the exact candidate commit.
@@ -141,11 +149,10 @@ Give a fresh verifier the parent contract, frozen manifest, reviewer-clean repor
 identity, and retained installed CLI path. Source, tests, configuration, and the report are
 read-only; running gates and updating ignored CLI verification state are allowed.
 
-The verifier runs the closest accepted reproducers, then:
-
-1. `v4hook verification check` for first-green evidence on the reviewed commit.
-2. `v4hook verification review` to bind the already-authored report to that unchanged commit.
-3. The same `v4hook verification check` for same-source second-green evidence.
+The verifier runs the closest accepted reproducers, then follows the exact verification command
+sequence in
+[local-workflow.md](local-workflow.md) to record first green, bind the already-authored report, and
+obtain same-source second green.
 
 It inspects exact test names and counts, skips, settings, static-analysis policy, sizes, gas, source
 identity, report digest, and lifecycle state. It returns verified evidence or one precise mismatch;
@@ -161,7 +168,9 @@ The chief independently inspects the verifier's evidence, clean source identity,
 digest, and lifecycle state. Only the chief may classify:
 
 - **Complete:** every parent deliverable is integrated and the required lifecycle is green.
-- **Escalated:** the next material step needs a user decision or new authority.
-- **Blocked:** no authorized local evidence-producing action remains.
+- **Escalated:** an autonomous next action exists only after a user decision or grant of new
+  authority.
+- **Blocked:** a technical, environmental, access, or external-dependency limit leaves no
+  autonomous next action under current authority.
 
 Local green, a child report, or an unbound review is never parent green.

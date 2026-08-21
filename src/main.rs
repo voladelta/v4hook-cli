@@ -185,7 +185,7 @@ enum VerificationCommand {
         #[arg(long, default_value = DEFAULT_STATE_PATH)]
         state: PathBuf,
     },
-    /// Bind a non-empty adversarial review report to the unchanged first-green source commit.
+    /// Validate and bind a v1 JSON chief-adjudicated review to the first-green source.
     Review {
         #[arg(long, default_value = DEFAULT_STATE_PATH)]
         state: PathBuf,
@@ -506,10 +506,14 @@ fn run() -> Result<i32> {
                     "digest": state_value.digest,
                     "candidateSource": state_value.candidate.as_ref().map(|value| &value.source),
                     "report": report,
+                    "reportDigest": state_value.candidate
+                        .as_ref()
+                        .and_then(|value| value.review.as_ref())
+                        .map(|value| &value.report_digest),
                 });
                 print_output(
                     &result,
-                    "Bound the adversarial review to the unchanged first-green source.",
+                    "Validated and bound the structured review to the unchanged first-green source.",
                     force_json,
                 )?;
             }
