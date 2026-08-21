@@ -52,9 +52,16 @@ evidence, integrates clean commits, and runs parent controls. Every candidate ch
 trivial repair, belongs to an explicitly profiled implementor or fixer.
 
 Use one writer at a time in a shared worktree. Parallel writers require isolated worktrees. Every
-writer contract explicitly grants or withholds Git working-tree, index, and commit authority. When
-it grants none of those, the child returns an uncommitted patch or findings and the chief alone
-integrates, stages, and commits them.
+child that produces candidate changes has explicit Git working-tree authority and materializes
+those changes in its assigned worktree. Its contract separately grants or withholds index and
+commit authority. A child without working-tree authority is read-only and returns findings,
+evidence, or design only; it never returns a candidate patch for someone else to apply.
+
+If an external or otherwise unmaterialized candidate patch exists, the chief records it as input
+and dispatches a fresh explicitly profiled implementor or fixer with working-tree authority to
+apply and validate it. The chief never applies, authors, or alters candidate patches. When its
+integration authority allows, the chief may inspect and accept already-materialized child work,
+then stage and commit it without changing the candidate contents.
 
 Route each child to only the domain skill and reference needed for its owned boundary. The chief
 already encodes orchestration in the child contract, so children do not reload `task-contracts` or

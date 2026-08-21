@@ -262,6 +262,21 @@ fn orchestrated_delivery_requires_profiled_non_overlapping_delegation() {
         "do not begin until an\nexplicitly profiled implementor or fixer is recorded as their candidate owner"
     ));
     assert!(workflow.contains("The chief never\nauthors candidate changes"));
+    assert!(workflow.contains(
+        "Every\nchild that produces candidate changes has explicit Git working-tree authority and materializes\nthose changes in its assigned worktree"
+    ));
+    assert!(workflow.contains(
+        "A child without working-tree authority is read-only and returns findings,\nevidence, or design only; it never returns a candidate patch for someone else to apply"
+    ));
+    assert!(workflow.contains(
+        "dispatches a fresh explicitly profiled implementor or fixer with working-tree authority to\napply and validate it"
+    ));
+    assert!(workflow.contains("The chief never applies, authors, or alters candidate patches"));
+    assert!(workflow.contains(
+        "the chief may inspect and accept already-materialized child work,\nthen stage and commit it without changing the candidate contents"
+    ));
+    assert!(!workflow.contains("the child returns an uncommitted patch"));
+    assert!(!workflow.contains("the chief alone\nintegrates"));
     assert!(
         workflow
             .contains("Never dispatch a replacement writer while the prior writer remains active")
