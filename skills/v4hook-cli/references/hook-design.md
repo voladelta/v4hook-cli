@@ -16,6 +16,17 @@ Answer or infer these questions before coding:
 6. Who may administer parameters, pause behavior, or recover assets?
 7. Which chains and EVM features must it support?
 
+For every asynchronous, timed, or permissionless state transition, also record:
+
+- who can trigger it and what makes paying gas rational;
+- the funds, state, and authority it consumes;
+- the earliest and latest valid time, if any;
+- its timeout, cancellation, or recovery path; and
+- which state and balances must roll back when it fails.
+
+A timestamp makes a transition eligible; it does not execute it. Prefer a permissionless caller with
+a direct user benefit or bounded reward over an undocumented operator assumption.
+
 ## Select a base
 
 Prefer the narrowest base present in the pinned tree:
@@ -60,6 +71,15 @@ Treat these as especially sensitive:
   authority only when privileged mutation is required.
 - Treat proxies and upgradeable hooks as unsupported unless the project explicitly models proxy
   deployment, initialization, implementation verification, storage compatibility, and governance.
+- Use the pinned standard implementation for an ordinary companion token. Specify only custom
+  transfer observation, mint/burn authority, supply, decimal, fee, or accounting behavior instead
+  of recreating inherited ERC-20 machinery.
+- Make every fee denominator and rounding owner explicit. Multiply before dividing, carry a
+  remainder when lifetime conservation requires it, and bound every signed/unsigned conversion.
+- Apply checks-effects-interactions to claims and other external-value transfers. Bound public array
+  sizes, reject duplicate identities where uniqueness matters, and define zero-value behavior.
+- If an application needs historical activity, settle its event schema before implementation and
+  route the indexing design through the EVM-integration reference.
 
 ## Produce the specification
 

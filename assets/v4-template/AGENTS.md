@@ -42,21 +42,21 @@ startup research.
    active and example v4hook configuration. Inspect the owned files named by the project map until
    the hook artifact, permissions, scripts, test gates, and pinned dependency lane are known.
 2. Use the first-party `v4hook-cli` skill when it is available. It owns the scaffold, configuration, checks, plan, simulation and live-action boundaries. Treat other generators as optional sources of implementation drafts.
-3. Before implementing or reviewing Solidity, read [ETHSkills](https://ethskills.com/SKILL.md), then
-   load only the security and testing topics the selected design needs. Robinhood Chain or another
-   EVM L2 also requires its relevant L2 guidance; deployment preparation requires wallet and
-   contract-address guidance; an off-chain application may require indexing or frontend guidance.
-4. Before a version-sensitive Foundry action, follow [Foundry's agent documentation](https://getfoundry.sh/introduction/agents). Read only the narrow page-level Markdown for that action and confirm commands against the installed tool's `--help` output.
-5. Use the official [Uniswap AI skills](https://github.com/Uniswap/uniswap-ai) for v4 hook work. If the required skill is unavailable and project-local skill installation is supported, install only what the task needs:
+3. Before implementing or reviewing hook Solidity, load `v4-security-foundations`. If it is
+   unavailable and project-local skill installation is supported, install only that official
+   [Uniswap AI skill](https://github.com/Uniswap/uniswap-ai):
 
    ```sh
    npx skills add Uniswap/uniswap-ai --skill v4-security-foundations
-   npx skills add Uniswap/uniswap-ai --skill v4-hook-generator
-   npx skills add Uniswap/uniswap-ai --skill viem-integration
-   npx skills add Uniswap/uniswap-ai --skill v4-sdk-integration
    ```
 
-   The security skill applies to every hook implementation or review. Use the generator only as a fallback design reference when the first-party skill is unavailable, and adapt its output to this project's pinned scaffold. Load `viem-integration` only for a TypeScript or JavaScript client, scenario runner, frontend, indexer, wallet connection or off-chain contract interaction. Also load `v4-sdk-integration` when constructing v4 pool identifiers, routes, actions, liquidity operations, Permit2 data or Universal Router calldata. Do not add viem or wagmi to a Solidity-only project.
+   For an ordinary companion ERC-20, inspect the pinned OpenZeppelin base and test only the custom
+   behavior layered on it. The ETHSkills root is not a Solidity startup dependency.
+4. Before a version-sensitive Foundry action, follow [Foundry's agent documentation](https://getfoundry.sh/introduction/agents). Read only the narrow page-level Markdown for that action and confirm commands against the installed tool's `--help` output.
+5. For a TypeScript or JavaScript client, scenario runner, frontend, indexer, wallet flow, L2
+   decision or remote-address binding, follow the `v4hook-cli` skill's EVM-integration router. It
+   selects `viem-integration`, `v4-sdk-integration`, and individual ETHSkills topics only at the
+   boundary they govern. Do not add viem or wagmi to a Solidity-only project.
 
 6. Immediately before designing or editing a Chainlink Data Feeds, VRF, CCIP, or other Chainlink
    integration, find the matching official skill in [Chainlink Agent Skills](https://github.com/smartcontractkit/chainlink-agent-skills) and install only that skill. For example:

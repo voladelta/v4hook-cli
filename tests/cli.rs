@@ -182,17 +182,19 @@ fn init_keeps_captured_stdout_machine_readable() {
     assert!(agent_instructions.contains("v4-security-foundations"));
     assert!(agent_instructions.contains("viem-integration"));
     assert!(agent_instructions.contains("v4-sdk-integration"));
-    assert!(agent_instructions.contains("Robinhood Chain"));
+    assert!(agent_instructions.contains("EVM-integration router"));
     assert!(agent_instructions.contains("Start from the project map"));
     assert!(agent_instructions.contains("Those early reads are preload only"));
     assert!(agent_instructions.contains("until step 1 establishes this project's pinned APIs"));
+    assert!(agent_instructions.contains("ETHSkills root is not a Solidity startup dependency"));
+    assert!(!agent_instructions.contains("https://ethskills.com/SKILL.md"));
     let metadata = fs::read_to_string(destination.0.join(".v4hook.toml"))
         .expect("scaffold includes template metadata");
     assert!(metadata.contains(&format!(
         "created-with-cli = \"{}\"",
         env!("CARGO_PKG_VERSION")
     )));
-    assert!(metadata.contains("version = \"2.2.2\""));
+    assert!(metadata.contains("version = \"2.2.3\""));
     assert!(destination.0.join(".env.example").is_file());
     assert!(destination.0.join(".gas-snapshot").is_file());
     assert!(destination.0.join("v4hook.config.example.json").is_file());

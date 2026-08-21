@@ -122,11 +122,17 @@ Preparation is complete when the specification is checkable, every protected inv
 the effective workload is frozen from a clean baseline commit, and each selected base, import, and
 permission exists in the pinned tree.
 
-For TypeScript or JavaScript clients, scenario runners, frontends, indexers, router flows, or
-companion-contract interaction, read [evm-integration.md](references/evm-integration.md) before
-implementation. It routes `viem-integration`, `v4-sdk-integration`, and current network guidance by
-the integration actually being built. Load `chainlink-vrf-skill` only when the design uses Chainlink
-VRF.
+For TypeScript or JavaScript clients, scenario runners, frontends, indexers, router flows,
+companion-contract interaction, or cross-protocol DeFi composition, read
+[evm-integration.md](references/evm-integration.md) before that integration. It routes
+`viem-integration`, `v4-sdk-integration`, and current network guidance by the integration actually
+being built. Load `chainlink-vrf-skill` only when the design uses Chainlink VRF.
+
+Do not load the ETHSkills root for a Solidity-only hook or an ordinary companion ERC-20. The pinned
+project APIs, [hook-design.md](references/hook-design.md),
+[integration-contract.md](references/integration-contract.md), and `v4-security-foundations` own
+that path. The EVM-integration reference routes individual ETHSkills topics only for a matching app,
+network, wallet, indexing, remote-address, or cross-protocol branch.
 
 ## Implement inside the scaffold
 

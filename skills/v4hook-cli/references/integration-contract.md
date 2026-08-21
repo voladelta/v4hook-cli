@@ -112,6 +112,12 @@ Increase fuzz depth for return deltas, custom curves, custody, or privileged fee
 If an invariant handler catches reverts, count attempted and successful actions and assert the
 expected success relationship. A nonzero-call assertion alone can pass while every action fails.
 
+Spend the configured workload on project behavior, not inherited library trivia. Test properties
+and economic postconditions across public production paths; do not retest standard token getters or
+Solidity assignments. Prefer bounded fuzz domains over discard-heavy assumptions. Expected failure
+tests should assert the exact selector and all material state/balance rollback, while stateful
+handlers classify unexpected failures separately for every action class.
+
 For each load-bearing behavior whose evidence depends on tests, perform a targeted negative control:
 temporarily disable or perturb the intended production implementation, confirm that the relevant
 tests go red for the expected reason, restore the implementation, and make them green again. A test

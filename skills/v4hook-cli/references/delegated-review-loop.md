@@ -21,7 +21,7 @@ verifiers never repair what they test.
 ## Write bounded child contracts
 
 Unless the parent contract selects another execution profile, dispatch every reviewer, fixer, and
-verifier with model `gpt-5.6-sol`, reasoning effort `high`, and the fast/priority service lane. If
+verifier with model `gpt-5.6-sol` and reasoning effort `high`. If
 that exact profile is unavailable, record the mismatch and retain the work locally or escalate; do
 not silently downgrade a security-critical delegated role.
 
